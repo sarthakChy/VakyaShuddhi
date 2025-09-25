@@ -1,6 +1,8 @@
-ml_project_env/
+.venv/
 __pycache__/
 .DS_Store
+
+hf_tokenized_dataset/
 
 *.pkl
 *.bin
