@@ -58,7 +58,7 @@ class SafeEvaluator(TrainerCallback):
     def clear_memory(self):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        if hasattr(torch.mps, 'empty_cache'):
+        if torch.backends.mps.is_available():
             torch.mps.empty_cache()
             
     def evaluate_with_safety(self, ignore_keys=None, **kwargs):
@@ -71,7 +71,7 @@ class SafeEvaluator(TrainerCallback):
             # Get evaluation dataset
             eval_dataset = self.trainer.eval_dataset
             if self.max_eval_samples:
-                eval_dataset = eval_dataset[:self.max_eval_samples]
+                eval_dataset = eval_dataset.select(range(self.max_eval_samples))
                 print(f"\nUsing {self.max_eval_samples} samples for evaluation")
             
             self.clear_memory()
@@ -101,7 +101,9 @@ class SafeEvaluator(TrainerCallback):
                     num_batches += 1
                 
                 self.clear_memory()
-            
+                
+            if num_batches == 0:
+                 raise ValueError("Evaluation dataloader returned no batches. Check dataset size and batch size.")
             # Calculate average loss
             eval_loss = total_loss / num_batches if num_batches > 0 else float('inf')
             
