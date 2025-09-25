@@ -17,7 +17,7 @@ def check_requirements():
     """Check installed package versions against requirements.txt."""
     print("\n📋 Package Version Check:")
     
-    req_path = Path(__file__).parent.parent / "requirements.txt"
+    req_path = Path(__file__).parent.parent.parent / "requirements.txt"
     if not req_path.exists():
         print("  ☠ requirements.txt not found")
         return
