@@ -33,3 +33,6 @@ tqdm
 transformers
 typing-extensions
 urllib3
+evaluate 
+sacrebleu 
+rouge_score
