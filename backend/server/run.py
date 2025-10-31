@@ -1,16 +1,56 @@
-from utils.hunspell import CandiateGenerator
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from utils.paraphraser import Paraphraser
 
-def main():
-    generator = CandiateGenerator()
+app = FastAPI(
+    title="VakhyaShuddhi",
+    version="1.0.0",
+    description="Backend APIs for VakhyaShuddhi",
+    root_path="/api",
+    docs_url="/docs"
+)
 
-    sentence = 'प्रदुषण की समस्या दिन-प्रतिदिन गम्भीर होती ज रह है।'
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "http://localhost:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    for word in sentence.split(' '):
-        if(generator.check_word(word)):
-            print(f'correct word {word}')
-        else:
-            print(f"incorrect {word} : {generator.generate_candidates(word)}")
+# Request schema
+class ParaphraseRequest(BaseModel):
+    sentence: str = Field(..., example="This is an example sentence.")
+
+# Response schema
+class ParaphraseResponse(BaseModel):
+    original: str
+    paraphrased: str
 
 
-if(__name__ == '__main__'):
-    main()
+paraphraser = Paraphraser()
+
+@app.post("/paraphrase", response_model=ParaphraseResponse)
+async def paraphrase_sentence(
+    request: ParaphraseRequest,
+    lang_tag: str = Query("hi", description="Language code (e.g., 'en', 'hi')")
+):
+    sentence = request.sentence.strip()
+
+    if not sentence:
+        raise HTTPException(status_code=400, detail="Sentence cannot be empty.")
+
+    lang_code = f"<2{lang_tag}>"
+
+    input_tokens = paraphraser.tokenize(sentence = sentence,lang_code = lang_code)
+
+    output_tokens = paraphraser.generate_output_token(input_tokens)
+
+    decoded_tokens = paraphraser.decode_output(output_tokens)
+
+    return {"original": sentence, "paraphrased": decoded_tokens}
