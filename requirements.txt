@@ -33,5 +33,5 @@ tqdm
 transformers
 typing-extensions
 urllib3
-fastapi 
+fastapi
 uvicorn

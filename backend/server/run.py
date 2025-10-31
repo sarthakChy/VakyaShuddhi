@@ -1,49 +1,56 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from utils.paraphraser import Paraphraser
 
 app = FastAPI(
-
-    title='VakshyaShuddi',
-    version='1.0',
+    title="VakhyaShuddhi",
+    version="1.0.0",
+    description="Backend APIs for VakhyaShuddhi",
     root_path="/api",
-    docs_url="/docs",
+    docs_url="/docs"
 )
-
-origins = [
-    
-    "http://localhost",
-    "http://localhost:8080",
-    "http://localhost:5173",
-]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "http://localhost:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Request schema
+class ParaphraseRequest(BaseModel):
+    sentence: str = Field(..., example="This is an example sentence.")
 
-class InputSentence(BaseModel):
-    sentence: str
+# Response schema
+class ParaphraseResponse(BaseModel):
+    original: str
+    paraphrased: str
 
 
-@app.get("/")
-async def root():
-    return {"message":"VakshyaShuddi backend"}
+paraphraser = Paraphraser()
 
-@app.post("/paraphrase")
-async def paraphrase(data: InputSentence):
-    paraphrased = data.sentence[::-1]
+@app.post("/paraphrase", response_model=ParaphraseResponse)
+async def paraphrase_sentence(
+    request: ParaphraseRequest,
+    lang_tag: str = Query("hi", description="Language code (e.g., 'en', 'hi')")
+):
+    sentence = request.sentence.strip()
 
-    return {"original":data,"paraphrased":paraphrased}
+    if not sentence:
+        raise HTTPException(status_code=400, detail="Sentence cannot be empty.")
 
-@app.post("/autocomplete")
-async def autocomplete(data: InputSentence):
+    lang_code = f"<2{lang_tag}>"
 
-    autocomplete = data.sentence[0]
+    input_tokens = paraphraser.tokenize(sentence = sentence,lang_code = lang_code)
 
-    return {"original":data,"paraphrased":autocomplete}
+    output_tokens = paraphraser.generate_output_token(input_tokens)
 
+    decoded_tokens = paraphraser.decode_output(output_tokens)
+
+    return {"original": sentence, "paraphrased": decoded_tokens}
