@@ -1,16 +1,49 @@
-from utils.hunspell import CandiateGenerator
+from fastapi import FastAPI, APIRouter
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
-def main():
-    generator = CandiateGenerator()
+app = FastAPI(
 
-    sentence = 'प्रदुषण की समस्या दिन-प्रतिदिन गम्भीर होती ज रह है।'
+    title='VakshyaShuddi',
+    version='1.0',
+    root_path="/api",
+    docs_url="/docs",
+)
 
-    for word in sentence.split(' '):
-        if(generator.check_word(word)):
-            print(f'correct word {word}')
-        else:
-            print(f"incorrect {word} : {generator.generate_candidates(word)}")
+origins = [
+    
+    "http://localhost",
+    "http://localhost:8080",
+    "http://localhost:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
-if(__name__ == '__main__'):
-    main()
+class InputSentence(BaseModel):
+    sentence: str
+
+
+@app.get("/")
+async def root():
+    return {"message":"VakshyaShuddi backend"}
+
+@app.post("/paraphrase")
+async def paraphrase(data: InputSentence):
+    paraphrased = data.sentence[::-1]
+
+    return {"original":data,"paraphrased":paraphrased}
+
+@app.post("/autocomplete")
+async def autocomplete(data: InputSentence):
+
+    autocomplete = data.sentence[0]
+
+    return {"original":data,"paraphrased":autocomplete}
+
