@@ -49,7 +49,7 @@ async def paraphrase_sentence(
 
     input_tokens = paraphraser.tokenize(message = message,lang_code = lang_code)
 
-    output_tokens = paraphraser.generate_output_token(input_tokens)
+    output_tokens = paraphraser.generate_output_token(input_tokens,lang_code = lang_code,max_length=256)
 
     decoded_tokens = paraphraser.decode_output(output_tokens)
 
