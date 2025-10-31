@@ -13,8 +13,8 @@ class Paraphraser():
     # To get lang_id use any of ['<2as>', '<2bn>', '<2en>', '<2gu>', '<2hi>', '<2kn>', '<2ml>', '<2mr>', '<2or>', '<2pa>', '<2ta>', '<2te>']
     # Input should be "Sentence </s> <2xx>" where xx is the language code. Similarly, the output should be "<2yy> Sentence </s>".
 
-    def tokenize(self,sentence:str,lang_code:str ="<2hi>"):
-        formated_input = f"{sentence.strip()} </s> {lang_code}"
+    def tokenize(self,message:str,lang_code:str ="<2hi>"):
+        formated_input = f"{message.strip()} </s> {lang_code}"
         return self.tokenizer(formated_input,add_special_tokens=False,return_tensors="pt",padding=True).input_ids
 
     def generate_output_token(self,input_tokens,no_repeat_ngram_size=3,
