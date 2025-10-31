@@ -46,7 +46,8 @@ class TrainingConfig:
     save_steps: int = 200  # Match eval steps
     logging_steps: int = 50  # More frequent logging
     save_total_limit: int = 3
-    early_stopping_patience: int = 5
+    early_stopping_patience: int = 3
+    early_stopping_threshold: float = 0.01  # Minimum improvement to reset patience
     eval_batch_size: int = 2
     max_eval_samples: int = 500
     eval_accumulation_steps: int = 4
@@ -148,7 +149,9 @@ class TrainingConfig:
             "weight_decay": self.weight_decay,
             "warmup_steps": self.warmup_steps,
             "lr_scheduler_type": self.lr_scheduler_type, 
+            "max_grad_norm": self.max_grad_norm,
             "logging_steps": self.logging_steps,
+            "report_to": self.report_to,
             "eval_strategy": "steps",
             "eval_steps": self.eval_steps,
             "eval_accumulation_steps": self.eval_accumulation_steps,
@@ -157,6 +160,7 @@ class TrainingConfig:
             "save_steps": self.save_steps,
             "load_best_model_at_end": True,
             "metric_for_best_model": "eval_loss",
+            "save_total_limit": self.save_total_limit,
             # M1 Mac specific settings
             "fp16": self.fp16,
             "bf16": self.bf16, # Faster training and MPS compatible!

@@ -10,6 +10,8 @@ from typing import Dict, Any
 import numpy as np
 from datetime import datetime
 from datasets import load_from_disk
+import evaluate 
+from functools import partial
 
 from transformers import (
     AutoModelForSeq2SeqLM,
@@ -101,7 +103,7 @@ class SafeEvaluator(TrainerCallback):
                     num_batches += 1
                 
                 self.clear_memory()
-                
+
             if num_batches == 0:
                  raise ValueError("Evaluation dataloader returned no batches. Check dataset size and batch size.")
             # Calculate average loss
@@ -168,66 +170,92 @@ class CustomSaveCallback(TrainerCallback):
         return control
 
 # Main compute - Processes model predictions and labels / converts tensorts to NumPy arrays
-def compute_metrics(eval_pred, tokenizer) -> Dict[str, float]:
-    predictions, labels = eval_pred.predictions, eval_pred.label_ids
+# def compute_metrics(eval_pred, tokenizer) -> Dict[str, float]:
+#     predictions, labels = eval_pred.predictions, eval_pred.label_ids
 
-    # Debug: Inspect raw predictions and labels
-    print(f"Predictions type: {type(predictions)}, shape: {np.shape(predictions) if isinstance(predictions, np.ndarray) else 'N/A'}")
-    print(f"Labels type: {type(labels)}, shape: {np.shape(labels) if isinstance(labels, np.ndarray) else 'N/A'}")
+#     # Debug: Inspect raw predictions and labels
+#     print(f"Predictions type: {type(predictions)}, shape: {np.shape(predictions) if isinstance(predictions, np.ndarray) else 'N/A'}")
+#     print(f"Labels type: {type(labels)}, shape: {np.shape(labels) if isinstance(labels, np.ndarray) else 'N/A'}")
 
-    # Converts tensors to standardised numpy arrays. Prevents unecessary memory retention
-    def to_numpy(tensor_or_array):
-        if torch.is_tensor(tensor_or_array):
-            return tensor_or_array.detach().cpu().numpy()
-        elif isinstance(tensor_or_array, np.ndarray):
-            return tensor_or_array
-        elif isinstance(tensor_or_array, tuple):
-            return to_numpy(tensor_or_array[0])
-        else:
-            raise TypeError(f"☠ Unsupported type for conversion: {type(tensor_or_array)}")
+#     # Converts tensors to standardised numpy arrays. Prevents unecessary memory retention
+#     def to_numpy(tensor_or_array):
+#         if torch.is_tensor(tensor_or_array):
+#             return tensor_or_array.detach().cpu().numpy()
+#         elif isinstance(tensor_or_array, np.ndarray):
+#             return tensor_or_array
+#         elif isinstance(tensor_or_array, tuple):
+#             return to_numpy(tensor_or_array[0])
+#         else:
+#             raise TypeError(f"☠ Unsupported type for conversion: {type(tensor_or_array)}")
 
-    predictions = to_numpy(predictions)
-    labels = to_numpy(labels)
+#     predictions = to_numpy(predictions)
+#     labels = to_numpy(labels)
 
-    if len(predictions.shape) == 3 and predictions.shape[-1] == tokenizer.vocab_size:
-        predictions = np.argmax(predictions, axis=-1)
-        print(f"🧮 Predictions converted to token IDs: shape {predictions.shape}")
+#     if len(predictions.shape) == 3 and predictions.shape[-1] == tokenizer.vocab_size:
+#         predictions = np.argmax(predictions, axis=-1)
+#         print(f"🧮 Predictions converted to token IDs: shape {predictions.shape}")
 
-    def remove_padding(arr, pad_token_id):
-        if isinstance(arr, np.ndarray):
-            arr = arr.tolist()
-        elif torch.is_tensor(arr):
-            arr = arr.cpu().numpy().tolist()
+#     def remove_padding(arr, pad_token_id):
+#         if isinstance(arr, np.ndarray):
+#             arr = arr.tolist()
+#         elif torch.is_tensor(arr):
+#             arr = arr.cpu().numpy().tolist()
 
-        result = []
-        for seq in arr:
-            if isinstance(seq, list):
-                cleaned_seq = [int(token) for token in seq if isinstance(token, (int, float)) and token != pad_token_id]
-                result.append(cleaned_seq)
-            else:
-                raise ValueError(f"\n☠ Unexpected sequence type: {type(seq)} - {seq}")
-        return result
+#         result = []
+#         for seq in arr:
+#             if isinstance(seq, list):
+#                 cleaned_seq = [int(token) for token in seq if isinstance(token, (int, float)) and token != pad_token_id]
+#                 result.append(cleaned_seq)
+#             else:
+#                 raise ValueError(f"\n☠ Unexpected sequence type: {type(seq)} - {seq}")
+#         return result
 
-    predictions_no_pad = remove_padding(predictions, tokenizer.pad_token_id)
-    labels_no_pad = remove_padding(labels, tokenizer.pad_token_id)
+#     predictions_no_pad = remove_padding(predictions, tokenizer.pad_token_id)
+#     labels_no_pad = remove_padding(labels, tokenizer.pad_token_id)
     
-    # Assign decoded predictions and labels before referencing them
-    decoded_preds = tokenizer.batch_decode(predictions_no_pad, skip_special_tokens=True)
-    decoded_labels = tokenizer.batch_decode(labels_no_pad, skip_special_tokens=True)
+#     # Assign decoded predictions and labels before referencing them
+#     decoded_preds = tokenizer.batch_decode(predictions_no_pad, skip_special_tokens=True)
+#     decoded_labels = tokenizer.batch_decode(labels_no_pad, skip_special_tokens=True)
 
-    # Debugging: Print decoded predictions and labels
-    # print(f"Decoded Predictions: {decoded_preds[:2]}")
-    # print(f"Decoded Labels: {decoded_labels[:2]}")
+#     # Debugging: Print decoded predictions and labels
+#     # print(f"Decoded Predictions: {decoded_preds[:2]}")
+#     # print(f"Decoded Labels: {decoded_labels[:2]}")
 
-    avg_pred_length = sum(len(pred.split()) for pred in decoded_preds) / len(decoded_preds)
-    avg_label_length = sum(len(label.split()) for label in decoded_labels) / len(decoded_labels)
-    length_ratio = avg_pred_length / avg_label_length if avg_label_length > 0 else 0
+#     avg_pred_length = sum(len(pred.split()) for pred in decoded_preds) / len(decoded_preds)
+#     avg_label_length = sum(len(label.split()) for label in decoded_labels) / len(decoded_labels)
+#     length_ratio = avg_pred_length / avg_label_length if avg_label_length > 0 else 0
 
-    return {
-        "avg_pred_length": avg_pred_length,
-        "avg_label_length": avg_label_length,
-        "length_ratio": length_ratio,
-    }
+#     return {
+#         "avg_pred_length": avg_pred_length,
+#         "avg_label_length": avg_label_length,
+#         "length_ratio": length_ratio,
+#     }
+
+def compute_metrics(eval_pred, tokenizer, metric):
+    predictions, labels = eval_pred
+    
+    # Decode generated tokens to text
+    decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
+    
+    # Replace -100 in the labels as we can't decode them
+    labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+    
+    # ROUGE expects a newline after each sentence
+    decoded_preds = ["\n".join(pred.strip().split()) for pred in decoded_preds]
+    decoded_labels = ["\n".join(label.strip().split()) for label in decoded_labels]
+    
+    # Compute ROUGE scores
+    result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
+    
+    # Extract ROUGE f-measures
+    result = {key: value * 100 for key, value in result.items()}
+    
+    # Add mean generated length
+    prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in predictions]
+    result["gen_len"] = np.mean(prediction_lens)
+    
+    return {k: round(v, 4) for k, v in result.items()}
 
 # Dataset validation
 def validate_datasets(train_dataset, val_dataset, tokenizer):
@@ -343,6 +371,8 @@ def train(config: TrainingConfig, model, tokenizer):
         **config.get_training_arguments()
     )
 
+    rouge_metric = evaluate.load("rouge")
+    compute_metrics_with_tokenizer = partial(compute_metrics, tokenizer=tokenizer, metric=rouge_metric)
     # Assign all configs to trainer 
     trainer = Trainer(
         model=model,
@@ -350,9 +380,12 @@ def train(config: TrainingConfig, model, tokenizer):
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         data_collator=default_data_collator,
+        compute_metrics=compute_metrics_with_tokenizer,
         callbacks=[
             EnhancedProgressCallback(),
-            EarlyStoppingCallback(early_stopping_patience=config.early_stopping_patience),
+            EarlyStoppingCallback(
+                early_stopping_threshold=config.early_stopping_threshold,
+                early_stopping_patience=config.early_stopping_patience),
             CustomSaveCallback()
         ]
     )
