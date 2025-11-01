@@ -1,11 +1,15 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Home from './pages/Home';
+import LandingPage from './pages/LandingPage';
+import Paraphrase from './pages/Paraphrase';
+import Grammar from './pages/Grammar';
 
 function App() {
   return (
     <Router>
       <Routes>
-        <Route path='/' element={<Home/>}/>
+        <Route path='/' element={<LandingPage/>}/>
+        <Route path='/paraphrase' element={<Paraphrase/>}/>
+        <Route path='/grammar' element={<Grammar/>}/>
       </Routes>
     </Router>
   )
