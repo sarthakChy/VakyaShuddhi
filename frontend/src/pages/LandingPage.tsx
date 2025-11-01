@@ -35,7 +35,7 @@ function LandingPage() {
             AI-powered writing assistant designed for Indian languages. Paraphrase, check grammar, and write with confidence in Hindi, Tamil, Telugu, Bengali, and more.
           </p>
           <p className="text-lg text-primary font-semibold mb-8">
-            हिंदी • தமிழ் • తెలుగు • বাংলা • অসমীয়া • ગુજરાતી • ಕನ್ನಡ • മലയാളം • मराठी • ਪੰਜਾਬੀ • ଓଡ଼ିଆ
+            हिंदी • தமிழ் • తెలుగు • বাংলা • ગુજરાતી • ಕನ್ನಡ • മലയാളം • मराठी • ਪੰਜਾਬੀ • ଓଡ଼ିଆ
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
             <Button size="lg" className="text-lg px-8 cursor-pointer">
@@ -63,11 +63,11 @@ function LandingPage() {
             <Card>
               <CardHeader>
                 <Languages className="h-10 w-10 text-primary mb-4" />
-                <CardTitle>10+ Indian Languages</CardTitle>
+                <CardTitle>10 Indian Languages</CardTitle>
               </CardHeader>
               <CardContent>
                 <CardDescription className="text-base">
-                  Support for Hindi, Tamil, Telugu, Bengali, Assamese, Gujarati, Kannada, Malayalam, Marathi, Punjabi, and Oriya. Write naturally in your mother tongue.
+                  Support for Hindi, Tamil, Telugu, Bengali, Gujarati, Kannada, Malayalam, Marathi, Punjabi, and Oriya. Write naturally in your mother tongue.
                 </CardDescription>
               </CardContent>
             </Card>
@@ -114,7 +114,6 @@ function LandingPage() {
                 { name: "தமிழ்", english: "Tamil" },
                 { name: "తెలుగు", english: "Telugu" },
                 { name: "বাংলা", english: "Bengali" },
-                { name: "অসমীয়া", english: "Assamese" },
                 { name: "ગુજરાતી", english: "Gujarati" },
                 { name: "ಕನ್ನಡ", english: "Kannada" },
                 { name: "മലയാളം", english: "Malayalam" },
