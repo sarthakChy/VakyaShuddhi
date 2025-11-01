@@ -26,6 +26,7 @@ app.add_middleware(
 # Request schema
 class ParaphraseRequest(BaseModel):
     message: str = Field(..., example="This is an example sentence.")
+    language: str = Field(...,example="Hindi")
 
 # Response schema
 class ParaphraseResponse(BaseModel):
@@ -38,12 +39,14 @@ paraphraser = Paraphraser()
 @app.post("/paraphrase", response_model=ParaphraseResponse)
 async def paraphrase_sentence(
     request: ParaphraseRequest,
-    lang_tag: str = Query("hi", description="Language code (e.g., 'en', 'hi')")
 ):
     message = request.message.strip()
+    language = request.language.strip()
 
     if not message:
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
+
+    lang_tag = paraphraser.get_langtag(language)
 
     lang_code = f"<2{lang_tag}>"
 
@@ -53,4 +56,8 @@ async def paraphrase_sentence(
 
     decoded_tokens = paraphraser.decode_output(output_tokens)
 
-    return {"original": message, "paraphrased": decoded_tokens}
+    if lang_tag == "hi": 
+        return {"original": message, "paraphrased": decoded_tokens}
+    else:
+        converted_text = paraphraser.translate(decoded_tokens,lang_tag)
+        return {"original": message, "paraphrased": converted_text}

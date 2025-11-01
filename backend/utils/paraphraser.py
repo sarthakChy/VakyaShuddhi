@@ -1,4 +1,5 @@
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from indicnlp.transliterate.unicode_transliterate import UnicodeIndicTransliterator
 
 class Paraphraser():
 
@@ -9,10 +10,24 @@ class Paraphraser():
         self.bos_id = self.tokenizer._convert_token_to_id_with_added_voc("<s>")
         self.eos_id = self.tokenizer._convert_token_to_id_with_added_voc("</s>")
         self.pad_id = self.tokenizer._convert_token_to_id_with_added_voc("<pad>")
-  
+        self.lang_mapping = {
+            "hindi":"hi",
+            "tamil":"ta",
+            "telugu":"te",
+            "bengali":"bn",
+            "assamese":"as",
+            "gujarati":"gu",
+            "kannada":"kn",
+            "malayalam":"ml",
+            "marathi":"mr",
+            "punjabi":"pa",
+            "oriya":"or"
+        }
     # To get lang_id use any of ['<2as>', '<2bn>', '<2en>', '<2gu>', '<2hi>', '<2kn>', '<2ml>', '<2mr>', '<2or>', '<2pa>', '<2ta>', '<2te>']
     # Input should be "Sentence </s> <2xx>" where xx is the language code. Similarly, the output should be "<2yy> Sentence </s>".
-
+    def get_langtag(self, language:str):
+        return self.lang_mapping[language]
+        
     def tokenize(self,message:str,lang_code:str ="<2hi>"):
         formated_input = f"{message.strip()} </s> {lang_code}"
         return self.tokenizer(formated_input,add_special_tokens=False,return_tensors="pt",padding=True).input_ids
@@ -33,8 +48,11 @@ class Paraphraser():
                                 pad_token_id=self.pad_id,
                                 bos_token_id=self.bos_id,
                                 eos_token_id=self.eos_id,
-                                decoder_start_token_id=self.tokenizer._convert_token_to_id_with_added_voc(lang_code))
+                                   decoder_start_token_id=self.tokenizer._convert_token_to_id_with_added_voc(lang_code))
 
     def decode_output(self,output_tokens, skip_special_tokens=True,clean_up_tokenization_spaces=True):
         return self.tokenizer.decode(output_tokens[0], skip_special_tokens=skip_special_tokens, clean_up_tokenization_spaces=clean_up_tokenization_spaces)
         
+    def translate(self,text_in_devanagari:str,lang_tag:str):
+        return UnicodeIndicTransliterator.transliterate(text_in_devanagari, "hi", lang_tag)
+

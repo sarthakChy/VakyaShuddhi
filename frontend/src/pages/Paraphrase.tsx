@@ -99,7 +99,6 @@ function Paraphrase() {
                       <SelectItem value="tamil">தமிழ் (Tamil)</SelectItem>
                       <SelectItem value="telugu">తెలుగు (Telugu)</SelectItem>
                       <SelectItem value="bengali">বাংলা (Bengali)</SelectItem>
-                      <SelectItem value="assamese">অসমীয়া (Assamese)</SelectItem>
                       <SelectItem value="gujarati">ગુજરાતી (Gujarati)</SelectItem>
                       <SelectItem value="kannada">ಕನ್ನಡ (Kannada)</SelectItem>
                       <SelectItem value="malayalam">മലയാളം (Malayalam)</SelectItem>
