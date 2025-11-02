@@ -19,7 +19,6 @@ function LandingPage() {
             <a href="#features" className="text-sm hover:text-primary transition">Features</a>
             <a href="#languages" className="text-sm hover:text-primary transition">Languages</a>
             <a href="#tools" className="text-sm hover:text-primary transition">Tools</a>
-            <Button className="cursor-pointer" variant="outline" size="sm">साइन इन</Button>
             <Button className="cursor-pointer" size="sm">Get Started</Button>
           </nav>
         </div>
