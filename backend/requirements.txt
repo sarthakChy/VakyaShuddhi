@@ -35,3 +35,7 @@ typing-extensions
 urllib3
 fastapi
 uvicorn
+pyjwt
+firebase-admin
+python-multipart
+dotenv

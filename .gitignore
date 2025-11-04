@@ -8,3 +8,5 @@ hf_tokenized_dataset/
 *.bin
 *.pt
 *.onnx
+
+serviceAccount.json
