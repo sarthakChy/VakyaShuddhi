@@ -13,9 +13,7 @@ import {
 } from "firebase/auth";
 import type { User } from "firebase/auth";
 import { auth } from "../../firebase";
-import { setAuthFunctions } from "../api/axios";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import { authApi, setAuthFunctions } from "../api/axios";
 
 interface AuthContextType {
   user: User | null;
@@ -55,6 +53,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const tokenRefreshTimeoutRef = useRef<number | null>(null);
   const isExchangingTokenRef = useRef<boolean>(false);
 
+  const scheduleTokenRefresh = (expiresInSeconds: number) => {
+    if (tokenRefreshTimeoutRef.current) {
+      clearTimeout(tokenRefreshTimeoutRef.current);
+    }
+
+    // Refresh 2 minutes before expiration (or at least after 30s)
+    const refreshTime = Math.max((expiresInSeconds - 120) * 1000, 30_000);
+
+    tokenRefreshTimeoutRef.current = window.setTimeout(async () => {
+      console.log("Auto-refreshing access token in ...",refreshTime);
+      await refreshAccessToken();
+    }, refreshTime);
+  };
+
   // Exchange Firebase token for access + refresh tokens
   const exchangeFirebaseToken = async (firebaseUser: User): Promise<string | null> => {
     // Prevent multiple simultaneous token exchanges
@@ -68,77 +80,76 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const firebaseToken = await firebaseUser.getIdToken();
       
       // Your backend expects firebase_token in request body
-      const response = await fetch(`${API_URL}/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        credentials: "include", // Important: includes cookies
-        body: new URLSearchParams({ firebase_token: firebaseToken }),
-      });
+      const response = await authApi.login(firebaseToken)
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || "Failed to exchange token");
+      if (!response) {
+        throw new Error("Failed to exchange token");
       }
 
-      const data = await response.json();
+      const data = await response.data;
+
+      if (!data?.access_token) {
+      throw new Error("Invalid token response from backend");
+      }
+      
+      if (!auth.currentUser) {
+        console.warn("User signed out before token exchange completed");
+        return null;
+      }
       accessTokenRef.current = data.access_token;
       
       // Schedule token refresh before expiration (13 minutes for 15 min token)
-      scheduleTokenRefresh();
+      if (!data?.access_token) {
+        throw new Error("Invalid token response from backend");
+      }
+      
+      console.log("✅ Access token received:", data.access_token);
+
+      accessTokenRef.current = data.access_token;
+      
+      // Use expires_in from backend (in seconds)
+      const expiresIn = data.expires_in ?? 15 * 60;
+      scheduleTokenRefresh(expiresIn);
       
       return data.access_token;
+
     } catch (error) {
-      console.error("Error exchanging Firebase token:", error);
-      return null;
+
+        console.error("Error exchanging Firebase token:", error);
+        await logout();
+        return null;
+
     } finally {
-      isExchangingTokenRef.current = false;
+        isExchangingTokenRef.current = false;
     }
   };
 
   // Refresh access token using refresh token (from httpOnly cookie)
   const refreshAccessToken = async (): Promise<string | null> => {
     try {
-      const response = await fetch(`${API_URL}/auth/refresh`, {
-        method: "POST",
-        credentials: "include", // Sends httpOnly cookie
-      });
+      const response = await authApi.refresh()
 
-      if (!response.ok) {
+      if (!response) {
         // Refresh token expired or invalid
         console.warn("Refresh token expired, logging out");
         await logout();
         return null;
       }
 
-      const data = await response.json();
+      const data = await response.data;
+      if (!data?.access_token) {
+        throw new Error("Invalid token response from backend");
+      }
       accessTokenRef.current = data.access_token;
       
-      scheduleTokenRefresh();
+      const expiresIn = data.expires_in ?? 15 * 60;
+      scheduleTokenRefresh(expiresIn);
       
       return data.access_token;
     } catch (error) {
       console.error("Error refreshing token:", error);
-      await logout();
       return null;
     }
-  };
-
-  // Schedule automatic token refresh
-  const scheduleTokenRefresh = () => {
-    // Clear existing timeout
-    if (tokenRefreshTimeoutRef.current) {
-      clearTimeout(tokenRefreshTimeoutRef.current);
-    }
-
-    // Refresh token 2 minutes before expiration (15 min - 2 min = 13 min)
-    const refreshTime = 13 * 60 * 1000; // 13 minutes in milliseconds
-    
-    tokenRefreshTimeoutRef.current = window.setTimeout(async () => {
-      console.log("Auto-refreshing access token...");
-      await refreshAccessToken();
-    }, refreshTime);
   };
 
   // Get current access token
@@ -148,24 +159,46 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Listen for auth state changes
   useEffect(() => {
-    // Set auth functions for axios interceptor
     setAuthFunctions(getAccessToken, refreshAccessToken);
-    
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
-      
+
       if (firebaseUser) {
-        // User logged in, exchange Firebase token for our tokens
-        await exchangeFirebaseToken(firebaseUser);
+        try {
+          if (accessTokenRef.current) {
+            const res = await authApi.me().catch(() => null);
+            if (res) {
+              console.log("✅ Access token still valid");
+              setLoading(false);
+              return;
+            }
+          }
+
+          // Try cookie refresh (won’t logout on fail)
+          const newAccessToken = await refreshAccessToken();
+          if (newAccessToken) {
+            console.log("🔄 Access token refreshed via cookie");
+            setLoading(false);
+            return;
+          }
+
+          console.log("⚙️ Doing full Firebase exchange");
+          await exchangeFirebaseToken(firebaseUser);
+          setLoading(false);
+        } catch (err) {
+          console.error("Error restoring session:", err);
+          await logout();
+          setLoading(false);
+        }
       } else {
-        // User logged out, clear access token
+        // User logged out
         accessTokenRef.current = null;
         if (tokenRefreshTimeoutRef.current) {
           clearTimeout(tokenRefreshTimeoutRef.current);
         }
+        setLoading(false);
       }
-      
-      setLoading(false);
     });
 
     return () => {
@@ -175,6 +208,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     };
   }, []);
+
 
   // Email/password signup
   const signUp = async ({
@@ -234,10 +268,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = async (): Promise<void> => {
     try {
       // Clear backend refresh token cookie
-      await fetch(`${API_URL}/auth/logout`, {
-        method: "POST",
-        credentials: "include",
-      });
+      await authApi.logout()
     } catch (error) {
       console.error("Error logging out from backend:", error);
     }

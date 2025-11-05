@@ -3,8 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Sparkles, Mail, Lock, User,Check } from "lucide-react"
-import { useState } from "react"
+import { useState,useEffect } from "react"
 import { useNavigate } from "react-router-dom"
+import { useAuth } from "@/contexts/AuthContext"
 
 function Signup() {
   const [name, setName] = useState("")
@@ -14,7 +15,16 @@ function Signup() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
+  const { signUp, signInWithGoogle, signInWithGitHub, user } = useAuth()
+
+
   const navigate  = useNavigate()
+
+  useEffect(() => {
+    if (user) {
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
 
   const passwordRequirements = [
     { met: password.length >= 6, text: "At least 6 characters" },
@@ -22,9 +32,9 @@ function Signup() {
     { met: /[0-9]/.test(password), text: "One number" }
   ]
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (password !== confirmPassword) {
       setError("Passwords do not match")
       return
@@ -38,30 +48,47 @@ function Signup() {
     setError("")
     setLoading(true)
 
-    setTimeout(() => {
-      console.log("Signup successful", { name, email })
-      // In real app: navigate("/dashboard")
+    try {
+      await signUp({ email, password, name }) // 🔥 real signup via Firebase + FastAPI
+      navigate("/dashboard")
+    } catch (err: any) {
+      console.error(err)
+      setError(err.message || "Failed to create account")
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
 
-  const handleGoogleSignUp = () => {
+
+  const handleGoogleSignUp = async () => {
     setError("")
     setLoading(true)
-    setTimeout(() => {
-      console.log("Google sign up")
+    try {
+      await signInWithGoogle()
+      navigate("/dashboard")
+    } catch (err: any) {
+      console.error(err)
+      setError(err.message || "Google sign up failed")
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
 
-  const handleGitHubSignUp = () => {
+
+  const handleGitHubSignUp = async () => {
     setError("")
     setLoading(true)
-    setTimeout(() => {
-      console.log("GitHub sign up")
+    try {
+      await signInWithGitHub()
+      navigate("/dashboard")
+    } catch (err: any) {
+      console.error(err)
+      setError(err.message || "GitHub sign up failed")
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-4">

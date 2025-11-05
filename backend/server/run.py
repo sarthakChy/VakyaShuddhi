@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Cookie, Response
+from fastapi import FastAPI, HTTPException, Depends, Cookie, Response, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from datetime import datetime, timedelta
@@ -34,6 +34,7 @@ app.add_middleware(
         "http://localhost:3000",
         "http://localhost:8000",
         "http://localhost:5173",
+        "http://localhost:4173",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -71,6 +72,7 @@ revoked_refresh_tokens: Dict[str, datetime] = {}
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    expires_in: int = Field(..., description="Access token expiry in seconds")
 
 class UserInfo(BaseModel):
     uid: str
@@ -105,6 +107,8 @@ def create_refresh_token(user_data: dict) -> str:
     expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     payload = {
         "sub": user_data["uid"],
+        "email": user_data.get("email"),
+        "name": user_data.get("name"),
         "exp": expire,
         "type": "refresh",
         "jti": str(uuid4())
@@ -155,7 +159,7 @@ async def verify_firebase_token(firebase_token: str) -> dict:
 # ============================
 
 @app.post("/auth/login", response_model=TokenResponse)
-async def login(firebase_token: str, response: Response):
+async def login(response: Response,firebase_token: str = Form(...)):
     user_data = await verify_firebase_token(firebase_token)
 
     access_token = create_access_token(user_data)
@@ -166,40 +170,32 @@ async def login(firebase_token: str, response: Response):
         value=refresh_token,
         httponly=True,
         secure=False,  # change to True in production
-        samesite="lax",
+        samesite="lax", # none when in production and different domain
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
     )
 
-    return TokenResponse(access_token=access_token)
+    return TokenResponse(access_token=access_token,expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60)
 
 @app.post("/auth/refresh", response_model=TokenResponse)
-async def refresh_access_token(refresh_token: Optional[str] = Cookie(None), response: Response = None):
+async def refresh_access_token(refresh_token: Optional[str] = Cookie(None)):
     if not refresh_token:
-        raise HTTPException(status_code=401, detail="Refresh token not found")
+        raise HTTPException(status_code=401, detail="No refresh token found")
 
     payload = verify_refresh_token(refresh_token)
-    jti = payload["jti"]
-    uid = payload["sub"]
 
-    # Invalidate old token
-    revoked_refresh_tokens[jti] = datetime.utcnow()
+    user_data = {
+        "uid": payload["sub"],
+        "email": payload.get("email"),
+        "name": payload.get("name")
+    }
 
-    # Generate new tokens
-    user_data = {"uid": uid}
     new_access_token = create_access_token(user_data)
-    new_refresh_token = create_refresh_token(user_data)
 
-    # Set new cookie
-    response.set_cookie(
-        key="refresh_token",
-        value=new_refresh_token,
-        httponly=True,
-        secure=False,  # change to True in production
-        samesite="lax",
-        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+    # NO refresh rotation here
+    return TokenResponse(
+        access_token=new_access_token,
+        expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
     )
-
-    return TokenResponse(access_token=new_access_token)
 
 @app.post("/auth/logout")
 async def logout(response: Response, refresh_token: Optional[str] = Cookie(None)):
@@ -218,11 +214,7 @@ async def logout(response: Response, refresh_token: Optional[str] = Cookie(None)
 
 @app.get("/auth/me")
 async def get_current_user(payload: dict = Depends(verify_access_token)):
-    return {
-        "uid": payload["sub"],
-        "email": payload.get("email"),
-        "name": payload.get("name")
-    }
+    return payload
 
 @app.get("/protected")
 async def protected_route(payload: dict = Depends(verify_access_token)):

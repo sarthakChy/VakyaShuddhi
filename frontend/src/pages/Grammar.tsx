@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Sidebar } from "@/components/ui/sidebar"
 import { useState } from "react"
 import { Menu, User, Check, X, AlertCircle} from "lucide-react"
+import { Link } from "react-router-dom";
 
 interface GrammarError {
   id: number
@@ -106,7 +107,7 @@ function GrammarChecker() {
       <div className="flex-1 flex flex-col">
         {/* Header */}
         <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="h-16 container mx-auto px-4 flex items-center justify-between">
+          <div className="container mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <span className="lg:hidden"></span>
               <span className="text-lg font-medium ml-12 lg:ml-0">Grammar Checker</span>
@@ -133,7 +134,7 @@ function GrammarChecker() {
                 Grammar Checker for Indian languages is under development. We're working hard to bring you this feature!
               </p>
               <Button asChild>
-                <a href="/paraphrase">Try Paraphraser Instead</a>
+                <Link to="/paraphrase">Try Paraphraser Instead</Link>
               </Button>
             </div>
           </div>

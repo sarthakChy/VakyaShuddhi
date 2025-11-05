@@ -1,29 +1,16 @@
-// src/components/ProtectedRoute.tsx
-import { Navigate } from "react-router-dom";
+import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import type { ReactNode } from "react";
 
-interface ProtectedRouteProps {
-  children: ReactNode;
-}
-
-function ProtectedRoute({ children }: ProtectedRouteProps) {
+export default function ProtectedRoute() {
   const { user, loading } = useAuth();
 
   if (loading) {
     return (
-      <div style={{ 
-        display: "flex", 
-        justifyContent: "center", 
-        alignItems: "center", 
-        height: "100vh" 
-      }}>
-        <div>Loading...</div>
+      <div className="flex h-screen items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
       </div>
     );
   }
 
-  return user ? <>{children}</> : <Navigate to="/login" />;
+  return user ? <Outlet /> : <Navigate to="/login" />;
 }
-
-export default ProtectedRoute;

@@ -3,8 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Sparkles, Mail, Lock } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
+import { useAuth } from "../contexts/AuthContext"
+
 
 function Login() {
   const [email, setEmail] = useState("")
@@ -12,42 +14,62 @@ function Login() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
+  const { signIn, signInWithGoogle, signInWithGitHub, user } = useAuth()
+
+
   const navigate = useNavigate()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (user) {
+      navigate("/dashboard")
+    }
+  }, [user, navigate])
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setLoading(true)
 
-    setTimeout(() => {
-      // Simulate login
-      if (email && password.length >= 6) {
-        console.log("Login successful")
-        // In real app: navigate("/dashboard")
-      } else {
-        setError("Invalid email or password")
-      }
+    try {
+      await signIn({ email, password }) // 🔥 real Firebase + backend login
+      navigate("/dashboard") // redirect on success
+    } catch (err: any) {
+      console.error(err)
+      setError(err.message || "Invalid email or password")
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
 
-  const handleGoogleSignIn = () => {
+
+  const handleGoogleSignIn = async () => {
     setError("")
     setLoading(true)
-    setTimeout(() => {
-      console.log("Google sign in")
+    try {
+      await signInWithGoogle()
+      navigate("/dashboard")
+    } catch (err: any) {
+      console.error(err)
+      setError(err.message || "Google sign in failed")
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
 
-  const handleGitHubSignIn = () => {
+  const handleGitHubSignIn = async () => {
     setError("")
     setLoading(true)
-    setTimeout(() => {
-      console.log("GitHub sign in")
+    try {
+      await signInWithGitHub()
+      navigate("/dashboard")
+    } catch (err: any) {
+      console.error(err)
+      setError(err.message || "GitHub sign in failed")
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-4">
