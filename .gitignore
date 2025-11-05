@@ -9,4 +9,6 @@ hf_tokenized_dataset/
 *.pt
 *.onnx
 
+.env
+
 serviceAccount.json
