@@ -128,12 +128,8 @@ function Upgrade() {
           <div className="container mx-auto px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <span className="lg:hidden"></span>
-              <span className="text-lg font-medium ml-12 lg:ml-0">Upgrade</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard')}>
-                <User className="h-5 w-5" />
-              </Button>
+              <Sparkles className="h-6 w-6 text-primary" />
+              <span className="text-lg font-medium ml-12 lg:ml-0">BharatWrite</span>
             </div>
           </div>
         </header>

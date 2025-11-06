@@ -48,3 +48,9 @@ To test your merged model before pushing to huggingface. Adjust name and test in
 ### upload_to_huggingface
 Update lines 63-66 of 'main' function accordginly. When running script you'll be prompted to enter a valid HF access token in CLI. 
 
+
+
+
+
+
+export GOOGLE_APPLICATION_CREDENTIALS="/home/user/Downloads/service-account-file.json"

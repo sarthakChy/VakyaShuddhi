@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Sidebar } from "@/components/ui/sidebar"
 import { useState } from "react"
-import { Menu, User, Check, X, AlertCircle} from "lucide-react"
-import { Link, useNavigate } from "react-router-dom";
+import { Menu, Check, X, AlertCircle} from "lucide-react"
+import { Link } from "react-router-dom";
+import { Navbar } from "@/components/ui/navbar"
 
 interface GrammarError {
   id: number
@@ -23,8 +24,6 @@ function GrammarChecker() {
   const [isLoading, setIsLoading] = useState(false)
   const [language, setLanguage] = useState("hindi")
   const [errors, setErrors] = useState<GrammarError[]>([])
-
-  const navigate = useNavigate()
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setTextValue(e.target.value)
@@ -108,22 +107,7 @@ function GrammarChecker() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <span className="lg:hidden"></span>
-              <span className="text-lg font-medium ml-12 lg:ml-0">Grammar Checker</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <Button variant="outline" size="sm" className="hidden sm:flex cursor-pointer" onClick={()=>navigate('/upgrade')}>
-                Upgrade to Premium
-              </Button>
-              <Button className="cursor-pointer" variant="ghost" size="sm" onClick={()=>navigate("/dashboard")}>
-                <User className="h-5 w-5"/>
-              </Button>
-            </div>
-          </div>
-        </header>
+        <Navbar title="Grammar Checker"/>
 
         {/* Page Content */}
         <div className="flex-1 overflow-auto relative">

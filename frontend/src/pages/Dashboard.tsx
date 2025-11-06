@@ -1,10 +1,12 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Sidebar } from "@/components/ui/sidebar"
+import { Navbar } from "@/components/ui/navbar"
+
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Badge } from "@/components/ui/badge"
 import { 
-  Menu, User, Sparkles, FileText, CheckCircle, 
+  Menu,Sparkles, FileText, CheckCircle, 
   TrendingUp, Clock, Award, ArrowRight
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react";
@@ -193,22 +195,7 @@ function Dashboard() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <span className="lg:hidden"></span>
-              <span className="text-lg font-medium ml-12 lg:ml-0">Dashboard</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <Button variant="outline" size="sm" className="hidden sm:flex cursor-pointer" onClick={()=>navigate('/upgrade')}>
-                Upgrade to Premium
-              </Button>
-              <Button variant="ghost" size="sm">
-                <User className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
-        </header>
+        <Navbar/>
 
         {/* Page Content */}
         <div className="flex-1 overflow-auto">

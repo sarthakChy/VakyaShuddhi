@@ -5,7 +5,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { 
-  Menu, User, Sparkles, CheckCircle, Search, 
+  Menu, Sparkles, CheckCircle, Search, 
   Trash2, Copy, Eye, Download, Filter
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Navbar } from "@/components/ui/navbar"
 
 interface BaseActivity {
   id: string
@@ -178,22 +179,7 @@ function History() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <span className="lg:hidden"></span>
-              <span className="text-lg font-medium ml-12 lg:ml-0">History</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <Button variant="outline" size="sm" className="hidden sm:flex" onClick={() => navigate('/upgrade')}>
-                Upgrade to Premium
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard')}>
-                <User className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
-        </header>
+        <Navbar title="History"/>
 
         {/* Page Content */}
         <div className="flex-1 overflow-auto">

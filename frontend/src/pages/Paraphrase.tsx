@@ -3,17 +3,15 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { useState } from "react"
-import { ArrowRight, Menu, User } from "lucide-react"
+import { ArrowRight, Menu} from "lucide-react"
 import { Sidebar } from "@/components/ui/sidebar"
-import { useNavigate } from "react-router-dom"
+import { Navbar } from "@/components/ui/navbar"
 
 function Paraphrase() {
   const [textValue, setTextValue] = useState("")
   const [paraphrasedText, setParaphrasedText] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [language, setLanguage] = useState("hindi")
-
-  const navigate = useNavigate()
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (e.target.value.length <= 250) {
@@ -68,22 +66,7 @@ function Paraphrase() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <span className="lg:hidden"></span>
-              <span className="text-lg font-medium ml-12 lg:ml-0">Paraphrasing Tool</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <Button variant="outline" size="sm" className="hidden sm:flex cursor-pointer" onClick={()=>navigate('/upgrade')}>
-                Upgrade to Premium
-              </Button>
-              <Button className="cursor-pointer" variant="ghost" size="sm" onClick={()=>navigate('/dashboard')}>
-                <User className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
-        </header>
+        <Navbar title="Paraphraser"/>
 
         {/* Page Content */}
         <div className="flex-1 overflow-auto">
