@@ -5,12 +5,15 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { useState } from "react"
 import { ArrowRight, Menu, User } from "lucide-react"
 import { Sidebar } from "@/components/ui/sidebar"
+import { useNavigate } from "react-router-dom"
 
 function Paraphrase() {
   const [textValue, setTextValue] = useState("")
   const [paraphrasedText, setParaphrasedText] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [language, setLanguage] = useState("hindi")
+
+  const navigate = useNavigate()
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (e.target.value.length <= 250) {
@@ -72,10 +75,10 @@ function Paraphrase() {
               <span className="text-lg font-medium ml-12 lg:ml-0">Paraphrasing Tool</span>
             </div>
             <div className="flex items-center gap-4">
-              <Button variant="outline" size="sm" className="hidden sm:flex">
+              <Button variant="outline" size="sm" className="hidden sm:flex cursor-pointer" onClick={()=>navigate('/upgrade')}>
                 Upgrade to Premium
               </Button>
-              <Button variant="ghost" size="sm">
+              <Button className="cursor-pointer" variant="ghost" size="sm" onClick={()=>navigate('/dashboard')}>
                 <User className="h-5 w-5" />
               </Button>
             </div>

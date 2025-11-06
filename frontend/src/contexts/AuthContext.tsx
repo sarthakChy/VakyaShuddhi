@@ -16,7 +16,8 @@ import { auth } from "../../firebase";
 import { authApi, setAuthFunctions } from "../api/axios";
 
 interface AuthContextType {
-  user: User | null;
+  firebaseUser: User | null;
+  user: UserProfile | null;
   loading: boolean;
   signUp: (credentials: SignUpCredentials) => Promise<User>;
   signIn: (credentials: SignInCredentials) => Promise<User>;
@@ -25,6 +26,19 @@ interface AuthContextType {
   signInWithGitHub: () => Promise<User>;
   getAccessToken: () => string | null;
   refreshAccessToken: () => Promise<string | null>;
+}
+
+interface UserProfile {
+  uid: string;
+  email: string | null;
+  name: string | null;
+  plan: 'free' | 'premium' | string; // Use 'free' | 'premium' if those are the only options
+  usage: {
+    paraphraseCount?: number;
+    grammarCheckCount?: number;
+    lastReset?: string; // Assuming ISO string from Firestore
+  };
+  createdAt: string; // Assuming ISO string
 }
 
 interface SignUpCredentials {
@@ -45,7 +59,8 @@ interface AuthProviderProps {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<User | null>(null);
+  const [firebaseUser, setfirebaseUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   
   // Store access token in memory (NOT localStorage)
@@ -161,35 +176,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     setAuthFunctions(getAccessToken, refreshAccessToken);
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-
-      if (firebaseUser) {
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      
+      let finalUser : User | null = null
+      console.log(fbUser)
+      
+      if (fbUser) {
         try {
-          if (accessTokenRef.current) {
-            const res = await authApi.me().catch(() => null);
-            if (res) {
-              console.log("✅ Access token still valid");
-              setLoading(false);
-              return;
+
+        let token: string | null = null;
+          
+          // 1. Try refreshing via cookie first. This is the most common case
+          //    on a page reload.
+          token = await refreshAccessToken();
+          if (token) {
+            console.log("🔄 Access token refreshed via cookie");
+          }
+
+          // 2. If cookie refresh fails, do a full Firebase token exchange.
+          //    This happens on first login or if the refresh token expired.
+          if (!token) {
+            token = await exchangeFirebaseToken(fbUser);
+            if (token) {
+              console.log("⚙️ Doing full Firebase exchange");
             }
           }
 
-          // Try cookie refresh (won’t logout on fail)
-          const newAccessToken = await refreshAccessToken();
-          if (newAccessToken) {
-            console.log("🔄 Access token refreshed via cookie");
-            setLoading(false);
-            return;
+          // 3. If we got a token (either way), set the user
+          if (token) {
+            const profileRes = await authApi.me();
+            setUser(profileRes?.data)
+            finalUser = fbUser;
+          } else {
+            // We have a Firebase user but can't get a backend token.
+            // This is an error state, so log them out.
+            throw new Error("Failed to get backend token for Firebase user.");
           }
 
-          console.log("⚙️ Doing full Firebase exchange");
-          await exchangeFirebaseToken(firebaseUser);
-          setLoading(false);
         } catch (err) {
           console.error("Error restoring session:", err);
-          await logout();
-          setLoading(false);
+          // Something failed, force a full logout
+          await logout(); 
+          finalUser = null;
         }
       } else {
         // User logged out
@@ -197,10 +225,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (tokenRefreshTimeoutRef.current) {
           clearTimeout(tokenRefreshTimeoutRef.current);
         }
-        setLoading(false);
+        finalUser = null
       }
+      setfirebaseUser(finalUser)
+      setLoading(false)
     });
-
+   
     return () => {
       unsubscribe();
       if (tokenRefreshTimeoutRef.current) {
@@ -281,12 +311,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     
     // Sign out from Firebase
     await signOut(auth);
-    setUser(null);
+    setfirebaseUser(null);
   };
 
   return (
     <AuthContext.Provider
       value={{
+        firebaseUser,
         user,
         loading,
         signUp,

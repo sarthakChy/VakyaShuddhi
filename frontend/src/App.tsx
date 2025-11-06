@@ -6,6 +6,8 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import ProtectedRoute from "./utils/ProtectedRoute";
+import History from "./pages/History";
+import Upgrade from "./pages/Upgrade";
 
 function App() {
   return (
@@ -16,6 +18,8 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/paraphrase" element={<Paraphrase />} />
         <Route path="/grammar" element={<Grammar />} />
+        <Route path="/history" element={<History />} />
+        <Route path="/upgrade" element={<Upgrade />} />
         <Route path="/dashboard" element={<Dashboard />} />
       </Route>
     </Routes>

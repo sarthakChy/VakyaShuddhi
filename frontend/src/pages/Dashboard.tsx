@@ -5,44 +5,56 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Badge } from "@/components/ui/badge"
 import { 
   Menu, User, Sparkles, FileText, CheckCircle, 
-  TrendingUp, Clock, Award, ArrowRight 
+  TrendingUp, Clock, Award, ArrowRight
 } from "lucide-react"
-import { useState } from "react"
+import type { LucideIcon } from "lucide-react";
+import { formatDistanceToNow, isValid} from 'date-fns';
+import { useState, useEffect} from "react"
+import api from "@/api/axios"
+import { useAuth } from "@/contexts/AuthContext"
+import { useNavigate } from "react-router-dom"
+
+// Based on your formatted stats array
+interface DashboardStat {
+  label: string;
+  value: string | number;
+  icon:LucideIcon,
+  color: string;
+}
+
+// Based on your /history endpoints
+// A base type for common fields
+interface BaseActivity {
+  id: string;
+  original: string;
+  language: string;
+  createdAt: string; // ISO string
+}
+
+// Specific type for paraphrase history
+interface ParaphraseActivity extends BaseActivity {
+  type: 'paraphrase';
+  paraphrased: string;
+}
+
+// Specific type for grammar history
+interface GrammarActivity extends BaseActivity {
+  type: 'grammar';
+  errors: any[]; // You could define a stronger 'Error' type here
+}
+
+// A union type for the combined list
+type RecentActivityItem = ParaphraseActivity | GrammarActivity;
+
 
 function Dashboard() {
-  const [profile] = useState({
-    name: "Rajesh Kumar",
-    email: "rajesh@example.com",
-    avatar: "RK"
-  })
+  const {user :profile} = useAuth()
+  const [stats, setStats] = useState<DashboardStat[]>([]);
+  const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const stats = [
-    { label: "Texts Paraphrased", value: "127", icon: FileText, color: "text-blue-600" },
-    { label: "Grammar Checks", value: "43", icon: CheckCircle, color: "text-green-600" },
-    { label: "Words Processed", value: "12.5K", icon: TrendingUp, color: "text-purple-600" },
-    { label: "Time Saved", value: "8h", icon: Clock, color: "text-orange-600" }
-  ]
-
-  const recentActivity = [
-    { 
-      type: "Paraphrase", 
-      text: "à¤®à¥ˆà¤‚ à¤…à¤ªà¤¨à¥‡ à¤˜à¤° à¤œà¤¾ à¤°à¤¹à¤¾ à¤¹à¥‚à¤‚...", 
-      language: "Hindi", 
-      time: "2 hours ago" 
-    },
-    { 
-      type: "Grammar", 
-      text: "The importance of education in society...", 
-      language: "English", 
-      time: "5 hours ago" 
-    },
-    { 
-      type: "Paraphrase", 
-      text: "à®®à®°à®¤à¯à®¤à®¿à®© à®®à®±à¯à®±à¯à®®à¯ à®µà®¾à®´à¯à®µà®¿à®©à¯...", 
-      language: "Tamil", 
-      time: "1 day ago" 
-    }
-  ]
+  const navigate = useNavigate()
 
   const quickActions = [
     {
@@ -75,6 +87,90 @@ function Dashboard() {
     }
   ]
 
+  useEffect(()=>{
+    const fetchDashboard = async() =>{
+      setLoading(true);
+      setError(null);
+
+      try{
+
+        const [
+          statsRes,
+          paraphrasesRes,
+          grammarRes
+        ] = await Promise.all([
+          api.get("/stats"),
+          api.get("/history/paraphrases?limit=5"), // Get last 5
+          api.get("/history/grammar?limit=5")      // Get last 5
+        ]);
+ 
+        const apiStats = statsRes.data;
+        const formattedStats = [
+          { 
+            label: "Total Paraphrases", 
+            value: apiStats.totalParaphrases, 
+            icon: FileText, 
+            color: "text-blue-600" 
+          },
+          { 
+            label: "Total Grammar Checks", 
+            value: apiStats.totalGrammarChecks, 
+            icon: CheckCircle, 
+            color: "text-green-600" 
+          },
+          { 
+            label: "Paraphrases Left (Month)", 
+            value: `${apiStats.remaining.paraphrase}`, 
+            icon: TrendingUp, 
+            color: "text-purple-600" 
+          },
+          { 
+            label: "Grammar Checks Left", 
+            value: `${apiStats.remaining.grammar}`, 
+            icon: Clock, 
+            color: "text-orange-600" 
+          }
+        ];
+        setStats(formattedStats);
+
+        const paraphrases = paraphrasesRes.data;
+        const grammar = grammarRes.data;
+        
+        const combinedActivity = [...paraphrases, ...grammar]
+          .sort((a, b) => new Date(b.createdAt).getDate() - new Date(a.createdAt)
+          .getDate()).slice(0, 5);
+        
+        setRecentActivity(combinedActivity);
+        
+
+      }catch(err){
+        console.error("Failed to fetch dashboard",err)
+        setError("could not fetch Dashboard, try again")
+      }finally{
+        setLoading(false)
+      }
+    }
+
+    fetchDashboard()
+  },[])
+
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        Error: {error}
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-background">
       {/* Desktop Sidebar */}
@@ -104,7 +200,7 @@ function Dashboard() {
               <span className="text-lg font-medium ml-12 lg:ml-0">Dashboard</span>
             </div>
             <div className="flex items-center gap-4">
-              <Button variant="outline" size="sm" className="hidden sm:flex">
+              <Button variant="outline" size="sm" className="hidden sm:flex cursor-pointer" onClick={()=>navigate('/upgrade')}>
                 Upgrade to Premium
               </Button>
               <Button variant="ghost" size="sm">
@@ -122,13 +218,13 @@ function Dashboard() {
               <div className="flex items-start justify-between">
                 <div>
                   <h1 className="text-2xl font-bold mb-2">
-                    Welcome back, {profile.name}! 👋
+                    Welcome back, {profile?.name || 'User'}! 👋
                   </h1>
                   <p className="text-muted-foreground mb-4">
                     You've saved 8 hours this month with BharatWrite
                   </p>
                   <div className="flex gap-3">
-                    <Button size="sm">
+                    <Button className="cursor-pointer" onClick={() => navigate('/paraphrase')} size="sm">
                       Start Writing <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                     <Button size="sm" variant="outline">
@@ -137,7 +233,7 @@ function Dashboard() {
                   </div>
                 </div>
                 <Badge variant="secondary" className="text-xs">
-                  Free Plan
+                  {profile?.plan || 'Free'} plan
                 </Badge>
               </div>
             </div>
@@ -163,7 +259,7 @@ function Dashboard() {
               <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {quickActions.map((action, idx) => (
-                  <Card key={idx} className="hover:shadow-lg transition cursor-pointer group">
+                  <Card key={idx} className="hover:shadow-lg transition cursor-pointer group" onClick={()=>navigate(action.link)}>
                     <CardContent className="pt-6">
                       <div className={`h-12 w-12 rounded-lg ${action.color} flex items-center justify-center mb-4`}>
                         <action.icon className="h-6 w-6" />
@@ -193,11 +289,11 @@ function Dashboard() {
                     {recentActivity.map((activity, idx) => (
                       <div key={idx} className="flex items-start gap-4 p-3 rounded-lg hover:bg-muted/50 transition cursor-pointer">
                         <div className={`h-10 w-10 rounded-lg ${
-                          activity.type === 'Paraphrase' 
+                          activity.type === 'paraphrase' 
                             ? 'bg-blue-500/10 text-blue-600' 
                             : 'bg-green-500/10 text-green-600'
                         } flex items-center justify-center flex-shrink-0`}>
-                          {activity.type === 'Paraphrase' ? (
+                          {activity.type === 'paraphrase' ? (
                             <Sparkles className="h-5 w-5" />
                           ) : (
                             <CheckCircle className="h-5 w-5" />
@@ -211,16 +307,21 @@ function Dashboard() {
                             </Badge>
                           </div>
                           <p className="text-sm text-muted-foreground truncate">
-                            {activity.text}
+                            {activity.original}
                           </p>
                           <p className="text-xs text-muted-foreground mt-1">
-                            {activity.time}
+                            {activity.original}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {activity.createdAt && isValid(new Date(activity.createdAt))
+                              ? formatDistanceToNow(new Date(activity.createdAt), { addSuffix: true })
+                              : 'Just now'}
                           </p>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <Button variant="outline" className="w-full mt-4">
+                  <Button variant="outline" className="w-full mt-4 cursor-pointer" onClick={()=>navigate('/history')}>
                     View All Activity
                   </Button>
                 </CardContent>
@@ -252,7 +353,7 @@ function Dashboard() {
                         API access
                       </li>
                     </ul>
-                    <Button className="w-full">
+                    <Button className="w-full cursor-pointer" onClick={()=>navigate('/upgrade')}>
                       Upgrade Now
                     </Button>
                   </CardContent>

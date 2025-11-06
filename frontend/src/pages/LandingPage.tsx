@@ -19,7 +19,7 @@ function LandingPage() {
             <a href="#features" className="text-sm hover:text-primary transition">Features</a>
             <a href="#languages" className="text-sm hover:text-primary transition">Languages</a>
             <a href="#tools" className="text-sm hover:text-primary transition">Tools</a>
-            <Button className="cursor-pointer" size="sm">Get Started</Button>
+            <Button className="cursor-pointer" size="sm" onClick={()=> navigate("/dashboard")}>Get Started</Button>
           </nav>
         </div>
       </header>
@@ -37,7 +37,7 @@ function LandingPage() {
             हिंदी • தமிழ் • తెలుగు • বাংলা • ગુજરાતી • ಕನ್ನಡ • മലയാളം • मराठी • ਪੰਜਾਬੀ • ଓଡ଼ିଆ
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
-            <Button size="lg" className="text-lg px-8 cursor-pointer">
+            <Button size="lg" className="text-lg px-8 cursor-pointer" onClick={()=> navigate("/dashboard")}>
               शुरू करें - It's Free!
             </Button>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -287,7 +287,7 @@ function LandingPage() {
           <p className="text-lg text-muted-foreground mb-8">
             Join millions of Indians who trust BharatWrite for their daily writing needs
           </p>
-          <Button size="lg" className="text-lg px-8 cursor-pointer">
+          <Button size="lg" className="text-lg px-8 cursor-pointer" onClick={()=>navigate("/dashboard")}>
             Start Writing Free - मुफ्त में शुरू करें
           </Button>
         </div>

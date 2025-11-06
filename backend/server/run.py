@@ -6,6 +6,7 @@ from typing import Optional, Dict
 import jwt
 import firebase_admin
 from firebase_admin import credentials, auth as firebase_auth
+from google.cloud import firestore
 from pydantic import BaseModel, Field
 from utils.paraphraser import Paraphraser
 from dotenv import load_dotenv
@@ -41,15 +42,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Firebase
-cred_path = os.getenv("SERVICE_ACCOUNT")
-if not cred_path:
-    raise RuntimeError("SERVICE_ACCOUNT path missing in .env")
+try:
+    firebase_admin.initialize_app()
+    db = firestore.Client(project="bharatwrite-8818b")
+    logger.info("Firebase Admin initiaize")
+except:
+    logger.critical("Failed to initialize Firebase")
 
-cred = credentials.Certificate(cred_path)
-if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred)
-    logger.info("Initialized Firebase app")
 
 # JWT Configuration
 ACCESS_SECRET_KEY = os.getenv("ACCESS_SECRET_KEY")
@@ -154,6 +153,143 @@ async def verify_firebase_token(firebase_token: str) -> dict:
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Invalid Firebase token: {str(e)}")
 
+
+
+# Usage limits
+FREE_PLAN_LIMITS = {
+    "paraphrase": 50,  # per month
+    "grammar": 30      # per month
+}
+
+# ============================
+# Firestore Helper Functions
+# ============================
+
+async def get_or_create_user(user_data: dict) -> dict:
+    """Get user from Firestore or create if doesn't exist"""
+    user_ref = db.collection('users').document(user_data['uid'])
+    user_doc = user_ref.get()
+    
+    if not user_doc.exists:
+        # Create new user
+        new_user = {
+            'email': user_data['email'],
+            'name': user_data.get('name', ''),
+            'createdAt': firestore.SERVER_TIMESTAMP,
+            'plan': 'free',
+            'usage': {
+                'paraphraseCount': 0,
+                'grammarCheckCount': 0,
+                'lastReset': datetime.utcnow()
+            },
+            'totalParaphrases': 0,
+            'totalGrammarChecks': 0
+        }
+        user_ref.set(new_user)
+        logger.info(f"Created new user: {user_data['uid']}")
+        return new_user
+    
+    return user_doc.to_dict()
+
+async def check_usage_limit(uid: str, action_type: str) -> tuple[bool, int]:
+    """
+    Check if user has remaining usage for the action
+    Returns: (can_use: bool, remaining: int)
+    """
+    user_ref = db.collection('users').document(uid)
+    user_doc = user_ref.get()
+    
+    if not user_doc.exists:
+        return False, 0
+    
+    user_data = user_doc.to_dict()
+    plan = user_data.get('plan', 'free')
+    
+    # Premium users have unlimited access
+    if plan == 'premium':
+        return True, -1  # -1 indicates unlimited
+    
+    # Check if usage needs to be reset (monthly)
+    usage = user_data.get('usage', {})
+    last_reset = usage.get('lastReset')
+    
+    if last_reset:
+        if isinstance(last_reset, datetime):
+            days_since_reset = (datetime.utcnow() - last_reset).days
+        else:
+            days_since_reset = 0
+            
+        if days_since_reset >= 30:
+            # Reset usage
+            user_ref.update({
+                'usage.paraphraseCount': 0,
+                'usage.grammarCheckCount': 0,
+                'usage.lastReset': datetime.utcnow()
+            })
+            usage['paraphraseCount'] = 0
+            usage['grammarCheckCount'] = 0
+    
+    # Check limits
+    if action_type == 'paraphrase':
+        current_count = usage.get('paraphraseCount', 0)
+        limit = FREE_PLAN_LIMITS['paraphrase']
+        remaining = limit - current_count
+        return current_count < limit, remaining
+    elif action_type == 'grammar':
+        current_count = usage.get('grammarCheckCount', 0)
+        limit = FREE_PLAN_LIMITS['grammar']
+        remaining = limit - current_count
+        return current_count < limit, remaining
+    
+    return False, 0
+
+async def increment_usage(uid: str, action_type: str):
+    """Increment usage count for user"""
+    user_ref = db.collection('users').document(uid)
+    
+    if action_type == 'paraphrase':
+        user_ref.update({
+            'usage.paraphraseCount': firestore.Increment(1),
+            'totalParaphrases': firestore.Increment(1)
+        })
+    elif action_type == 'grammar':
+        user_ref.update({
+            'usage.grammarCheckCount': firestore.Increment(1),
+            'totalGrammarChecks': firestore.Increment(1)
+        })
+
+async def save_paraphrase_history(uid: str, original: str, paraphrased: str, language: str) -> str:
+    """Save paraphrase to history"""
+    paraphrase_ref = db.collection('paraphrases').document()
+    paraphrase_data = {
+        'userId': uid,
+        'original': original,
+        'paraphrased': paraphrased,
+        'language': language,
+        'createdAt': firestore.SERVER_TIMESTAMP
+    }
+    paraphrase_ref.set(paraphrase_data)
+    return paraphrase_ref.id
+
+async def save_grammar_history(uid: str, original: str, errors: list, language: str) -> str:
+    """Save grammar check to history"""
+    grammar_ref = db.collection('grammarChecks').document()
+    grammar_data = {
+        'userId': uid,
+        'original': original,
+        'errors': errors,
+        'language': language,
+        'createdAt': firestore.SERVER_TIMESTAMP
+    }
+    grammar_ref.set(grammar_data)
+    return grammar_ref.id
+
+
+
+
+
+
+
 # ============================
 # Auth Routes
 # ============================
@@ -161,6 +297,8 @@ async def verify_firebase_token(firebase_token: str) -> dict:
 @app.post("/auth/login", response_model=TokenResponse)
 async def login(response: Response,firebase_token: str = Form(...)):
     user_data = await verify_firebase_token(firebase_token)
+
+    await get_or_create_user(user_data)
 
     access_token = create_access_token(user_data)
     refresh_token = create_refresh_token(user_data)
@@ -214,7 +352,24 @@ async def logout(response: Response, refresh_token: Optional[str] = Cookie(None)
 
 @app.get("/auth/me")
 async def get_current_user(payload: dict = Depends(verify_access_token)):
-    return payload
+    """Get current user profile"""
+    uid = payload['sub']
+    user_ref = db.collection('users').document(uid)
+    user_doc = user_ref.get()
+    
+    if not user_doc.exists:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_data = user_doc.to_dict()
+    
+    return {
+        'uid': uid,
+        'email': user_data.get('email'),
+        'name': user_data.get('name'),
+        'plan': user_data.get('plan', 'free'),
+        'usage': user_data.get('usage', {}),
+        'createdAt': user_data.get('createdAt')
+    }
 
 @app.get("/protected")
 async def protected_route(payload: dict = Depends(verify_access_token)):
@@ -227,7 +382,20 @@ async def protected_route(payload: dict = Depends(verify_access_token)):
 paraphraser = Paraphraser()
 
 @app.post("/paraphrase", response_model=ParaphraseResponse)
-async def paraphrase_sentence(request: ParaphraseRequest):
+async def paraphrase_sentence(
+    request: ParaphraseRequest,
+    payload: dict = Depends(verify_access_token)
+):
+    uid = payload['sub']
+    
+    # Check usage limit
+    can_use, remaining = await check_usage_limit(uid, 'paraphrase')
+    if not can_use:
+        raise HTTPException(
+            status_code=403,
+            detail="Monthly limit reached. Upgrade to premium for unlimited access."
+        )
+    
     message = request.message.strip()
     language = request.language.strip()
 
@@ -242,7 +410,115 @@ async def paraphrase_sentence(request: ParaphraseRequest):
     decoded_tokens = paraphraser.decode_output(output_tokens)
 
     if lang_tag == "hi":
-        return {"original": message, "paraphrased": decoded_tokens}
+        paraphrased = decoded_tokens
     else:
-        converted_text = paraphraser.translate(decoded_tokens, lang_tag)
-        return {"original": message, "paraphrased": converted_text}
+        paraphrased = paraphraser.translate(decoded_tokens, lang_tag)
+    
+    # Save to history
+    await save_paraphrase_history(uid, message, paraphrased, language)
+    
+    # Increment usage
+    await increment_usage(uid, 'paraphrase')
+    
+    # Get updated remaining count
+    _, new_remaining = await check_usage_limit(uid, 'paraphrase')
+    
+    return {
+        "original": message,
+        "paraphrased": paraphrased,
+        "usage_remaining": new_remaining
+    }
+
+# ============================
+# New Routes for History & Stats
+# ============================
+
+@app.get("/history/paraphrases")
+async def get_paraphrase_history(
+    payload: dict = Depends(verify_access_token),
+    limit: int = 20
+):
+    """Get user's paraphrase history"""
+    uid = payload['sub']
+    
+    paraphrases = db.collection('paraphrases')\
+        .where('userId', '==', uid)\
+        .order_by('createdAt', direction=firestore.Query.DESCENDING)\
+        .limit(limit)\
+        .stream()
+    
+    history = []
+    for doc in paraphrases:
+        data = doc.to_dict()
+        history.append({
+            'id': doc.id,
+            'type': 'paraphrase',
+            'original': data['original'],
+            'paraphrased': data['paraphrased'],
+            'language': data['language'],
+            'createdAt': data['createdAt'].isoformat() if data.get('createdAt') else None
+        })
+    
+    return history
+
+@app.get("/history/grammar")
+async def get_grammar_history(
+    payload: dict = Depends(verify_access_token),
+    limit: int = 20
+):
+    """Get user's grammar check history"""
+    uid = payload['sub']
+    
+    checks = db.collection('grammarChecks')\
+        .where('userId', '==', uid)\
+        .order_by('createdAt', direction=firestore.Query.DESCENDING)\
+        .limit(limit)\
+        .stream()
+    
+    history = []
+    for doc in checks:
+        data = doc.to_dict()
+        history.append({
+            'id': doc.id,
+            'type': 'grammar',
+            'original': data['original'],
+            'errors': data['errors'],
+            'language': data['language'],
+            'createdAt': data['createdAt'].isoformat() if data.get('createdAt') else None
+        })
+    
+    return history
+
+@app.get("/stats")
+async def get_user_stats(payload: dict = Depends(verify_access_token)):
+    """Get user statistics for dashboard"""
+    uid = payload['sub']
+    
+    # Get user data
+    user_ref = db.collection('users').document(uid)
+    user_doc = user_ref.get()
+    
+    if not user_doc.exists:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_data = user_doc.to_dict()
+    
+    paraphrase_count = user_data.get('totalParaphrases', 0)
+    grammar_count = user_data.get('totalGrammarChecks', 0)
+
+    usage = user_data.get('usage', {})
+    
+    return {
+        'totalParaphrases': paraphrase_count,
+        'totalGrammarChecks': grammar_count,
+        'plan': user_data.get('plan', 'free'),
+        'monthlyUsage': {
+            'paraphrase': usage.get('paraphraseCount', 0),
+            'grammar': usage.get('grammarCheckCount', 0)
+        },
+        'limits': FREE_PLAN_LIMITS,
+        'remaining': {
+            'paraphrase': FREE_PLAN_LIMITS['paraphrase'] - usage.get('paraphraseCount', 0),
+            'grammar': FREE_PLAN_LIMITS['grammar'] - usage.get('grammarCheckCount', 0)
+        }
+    }

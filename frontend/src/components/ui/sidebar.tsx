@@ -44,7 +44,7 @@ export function Sidebar({ activeTool = "paraphrase" }: SidebarProps) {
       </nav>
 
       <div className="p-4 border-t">
-        <Button variant="outline" className="w-full" size="sm">
+        <Button variant="outline" className="w-full cursor-pointer" size="sm" onClick={()=>navigate('/upgrade')}>
           Upgrade to Premium
         </Button>
       </div>
