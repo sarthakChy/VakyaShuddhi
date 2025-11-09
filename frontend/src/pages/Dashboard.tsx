@@ -28,6 +28,7 @@ interface DashboardStat {
 // A base type for common fields
 interface BaseActivity {
   id: string;
+  activity_id: string;
   original: string;
   language: string;
   createdAt: string; // ISO string
@@ -272,7 +273,7 @@ function Dashboard() {
                   <CardDescription>Your latest writing tasks</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
+                  <div className="space-y-4 max-h-96 overflow-y-auto">
                     {recentActivity.map((activity, idx) => (
                       <div key={idx} className="flex items-start gap-4 p-3 rounded-lg hover:bg-muted/50 transition cursor-pointer">
                         <div className={`h-10 w-10 rounded-lg ${
@@ -291,6 +292,9 @@ function Dashboard() {
                             <span className="font-medium text-sm">{activity.type}</span>
                             <Badge variant="outline" className="text-xs">
                               {activity.language}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {activity.activity_id}
                             </Badge>
                           </div>
                           <p className="text-sm text-muted-foreground truncate">

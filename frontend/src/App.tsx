@@ -15,11 +15,11 @@ function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/upgrade" element={<Upgrade />} />
       <Route element={<ProtectedRoute />}>
         <Route path="/paraphrase" element={<Paraphrase />} />
         <Route path="/grammar" element={<Grammar />} />
         <Route path="/history" element={<History />} />
-        <Route path="/upgrade" element={<Upgrade />} />
         <Route path="/dashboard" element={<Dashboard />} />
       </Route>
     </Routes>

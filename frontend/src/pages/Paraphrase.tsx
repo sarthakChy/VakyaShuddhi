@@ -6,6 +6,7 @@ import { useState } from "react"
 import { ArrowRight, Menu} from "lucide-react"
 import { Sidebar } from "@/components/ui/sidebar"
 import { Navbar } from "@/components/ui/navbar"
+import api from "@/api/axios"
 
 function Paraphrase() {
   const [textValue, setTextValue] = useState("")
@@ -14,29 +15,30 @@ function Paraphrase() {
   const [language, setLanguage] = useState("hindi")
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    if (e.target.value.length <= 250) {
+    console.log(e.target.value)
+    const words  = e.target.value.split(" ")
+    if (words.length <= 150) {
+
       setTextValue(e.target.value)
     }
   }
   
   const handleClick = async () => {
     setIsLoading(true)
+
     try {
-      const response = await fetch('http://localhost:8000/api/paraphrase', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          message: textValue,
-          language: language 
-        })
-      })
+      const response = await  api.post("/paraphrase",{
+        message:textValue,
+        language:language
+      })  
       
-      const data = await response.json()
+      const data = response.data
       console.log('Response:', data)
       
-      setParaphrasedText(data.paraphrased || data.message || data.result)
+      const paraphrased = data.paraphrased
+
+      setParaphrasedText(paraphrased)      
+
     } catch (error) {
       console.error('Error sending message:', error)
     } finally {
@@ -119,7 +121,7 @@ function Paraphrase() {
                   onChange={handleChange}
                 />
                 <div className="text-xs text-muted-foreground text-right">
-                  {textValue.length} / 250 characters
+                    {textValue.trim() ? textValue.trim().split(/\s+/).length : 0} / 150 words
                 </div>
               </div>
               
@@ -145,7 +147,7 @@ function Paraphrase() {
                   />
                 )}
                 <div className="text-xs text-muted-foreground text-right">
-                  {paraphrasedText.length} characters
+                    {paraphrasedText.trim() ? paraphrasedText.trim().split(/\s+/).length : 0} words
                 </div>
               </div>
             </div>
