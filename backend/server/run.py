@@ -1,8 +1,8 @@
 from fastapi import FastAPI, HTTPException, Depends, Cookie, Response, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from datetime import datetime, timedelta
-from typing import Optional, Dict
+from datetime import datetime, timedelta, timezone
+from typing import Optional, Dict, List
 import jwt
 import firebase_admin
 from firebase_admin import credentials, auth as firebase_auth
@@ -13,6 +13,13 @@ from dotenv import load_dotenv
 import os
 import logging
 from uuid import uuid4
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import hunspell
+import re
+
+# from indic_transliteration import sanscript
+# from indic_transliteration.sanscript import transliterate
 
 # ============================
 # Setup
@@ -49,6 +56,12 @@ try:
 except:
     logger.critical("Failed to initialize Firebase")
 
+try:
+
+    hobj = hunspell.HunSpell('/home/sarthak/Desktop/VakyaShuddhi/backend/data/hi_IN.dic', '/home/sarthak/Desktop/VakyaShuddhi/backend/data/hi_IN.aff')
+    logger.info("Hunspell dictionary initialized")
+except:
+    logger.critical("Error initializing hunspell")
 
 # JWT Configuration
 ACCESS_SECRET_KEY = os.getenv("ACCESS_SECRET_KEY")
@@ -61,12 +74,31 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 15
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 security = HTTPBearer()
 
+executor = ThreadPoolExecutor(max_workers=4)
+
+
 # In-memory revoked token store (replace with DB/Redis in prod)
 revoked_refresh_tokens: Dict[str, datetime] = {}
 
 # ============================
 # Models
 # ============================
+class GrammarRequest(BaseModel):
+    message: str
+    language: str = "hindi"
+
+class GrammarError(BaseModel):
+    id: int
+    type: str
+    message: str
+    original: str
+    suggestion: str
+    context: str
+
+class GrammarResponse(BaseModel):
+    errors: List[GrammarError]
+    stats: dict
+
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -85,6 +117,7 @@ class ParaphraseRequest(BaseModel):
 class ParaphraseResponse(BaseModel):
     original: str
     paraphrased: str
+    language:str
 
 # ============================
 # JWT Helpers
@@ -215,7 +248,7 @@ async def check_usage_limit(uid: str, action_type: str) -> tuple[bool, int]:
     
     if last_reset:
         if isinstance(last_reset, datetime):
-            days_since_reset = (datetime.utcnow() - last_reset).days
+            days_since_reset = (datetime.now(timezone.utc) - last_reset).days
         else:
             days_since_reset = 0
             
@@ -263,12 +296,18 @@ async def save_paraphrase_history(uid: str, original: str, paraphrased: str, lan
     paraphrase_ref = db.collection('paraphrases').document()
     paraphrase_data = {
         'userId': uid,
+        'paraphrase_id':paraphrase_ref.id,
         'original': original,
         'paraphrased': paraphrased,
         'language': language,
         'createdAt': firestore.SERVER_TIMESTAMP
     }
+    print(paraphrase_ref.id)
+
     paraphrase_ref.set(paraphrase_data)
+
+    print(paraphrase_data['paraphrase_id'])
+
     return paraphrase_ref.id
 
 async def save_grammar_history(uid: str, original: str, errors: list, language: str) -> str:
@@ -399,40 +438,47 @@ async def paraphrase_sentence(
     message = request.message.strip()
     language = request.language.strip()
 
-    if not message:
-        raise HTTPException(status_code=400, detail="Message cannot be empty.")
-
     lang_tag = paraphraser.get_langtag(language)
     lang_code = f"<2{lang_tag}>"
 
-    input_tokens = paraphraser.tokenize(message=message, lang_code=lang_code)
-    output_tokens = paraphraser.generate_output_token(input_tokens, lang_code=lang_code, max_length=256)
-    decoded_tokens = paraphraser.decode_output(output_tokens)
+    if not message:
+        raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
-    if lang_tag == "hi":
-        paraphrased = decoded_tokens
-    else:
-        paraphrased = paraphraser.translate(decoded_tokens, lang_tag)
+    sentences = re.findall(r'[^।?!]+[।?!]?', message)
+
+    def process(sentence):
+        input_tokens = paraphraser.tokenize(message=sentence, lang_code=lang_code)
+        output_tokens = paraphraser.generate_output_token(
+            input_tokens, lang_code=lang_code, max_length=256
+        )
+        decoded_tokens = paraphraser.decode_output(output_tokens)
+
+        if lang_tag == "hi":
+            return decoded_tokens
+        else:
+            return paraphraser.translate(decoded_tokens, lang_tag)
+
+    loop = asyncio.get_event_loop()
+
+    tasks = [loop.run_in_executor(executor,process,s) for s in sentences if s.strip()]
+
+    paraphrased_sentences = await asyncio.gather(*tasks)
     
-    # Save to history
+    # Join paraphrased sentences back
+    paraphrased = " ".join(paraphrased_sentences)
+
     await save_paraphrase_history(uid, message, paraphrased, language)
-    
-    # Increment usage
     await increment_usage(uid, 'paraphrase')
-    
-    # Get updated remaining count
-    _, new_remaining = await check_usage_limit(uid, 'paraphrase')
     
     return {
         "original": message,
         "paraphrased": paraphrased,
-        "usage_remaining": new_remaining
+        "language":language
     }
 
 # ============================
 # New Routes for History & Stats
 # ============================
-
 @app.get("/history/paraphrases")
 async def get_paraphrase_history(
     payload: dict = Depends(verify_access_token),
@@ -453,6 +499,7 @@ async def get_paraphrase_history(
         history.append({
             'id': doc.id,
             'type': 'paraphrase',
+            'activity_id':data['paraphrase_id'],
             'original': data['original'],
             'paraphrased': data['paraphrased'],
             'language': data['language'],
@@ -522,3 +569,179 @@ async def get_user_stats(payload: dict = Depends(verify_access_token)):
             'grammar': FREE_PLAN_LIMITS['grammar'] - usage.get('grammarCheckCount', 0)
         }
     }
+
+
+# Basic Hindi grammar rules
+HINDI_RULES = {
+    # Common mistakes
+    'को को': {'suggestion': 'को', 'type': 'Repetition', 'message': 'Duplicate word found'},
+    'ने ने': {'suggestion': 'ने', 'type': 'Repetition', 'message': 'Duplicate word found'},
+    'है है': {'suggestion': 'है', 'type': 'Repetition', 'message': 'Duplicate word found'},
+    
+    # Common verb agreement issues (simplified)
+    'लड़का गई': {'suggestion': 'लड़का गया', 'type': 'Gender Agreement', 'message': 'Verb gender should match subject'},
+    'लड़की गया': {'suggestion': 'लड़की गई', 'type': 'Gender Agreement', 'message': 'Verb gender should match subject'},
+}
+
+
+def get_sentence_context(text: str, start_pos: int) -> Optional[str]:
+    """
+    Extracts the full sentence containing the word, based on common punctuation.
+    We don't need 'word' or 'context_len' anymore.
+    """
+    # 1. Define sentence boundary pattern (., !, ?) followed by whitespace or end of string
+    # This regex is a simple approach; real NLP uses more sophisticated models/tokenizers.
+    sentence_pattern = r'[^.!?]*[.!?]\s*|$' 
+    
+    # 2. Find all sentence matches in the text
+    matches = list(re.finditer(sentence_pattern, text))
+    
+    # 3. Locate the sentence that contains the start_pos
+    for match in matches:
+        # Check if the start_pos (where the misspelled word is) falls within this sentence match
+        if match.start() <= start_pos < match.end():
+            # Strip leading/trailing whitespace and return the full sentence
+            return match.group(0).strip()
+            
+    # Fallback if no sentence is found (e.g., if the text is empty or unusual)
+    return None
+
+
+def check_spelling_improved(text: str) -> List[GrammarError]:
+    """Check spelling using Hunspell (Improved with finditer)"""
+    errors = []
+    error_id = 1
+    
+    # Use finditer to get an iterator of match objects, each containing word and position
+    matches = re.finditer(r'[\u0900-\u097F]+', text)
+    
+    for match in matches:
+        word = match.group(0) # The matched word string
+        word_start_pos = match.start() # The specific start index of this match
+        
+        if not hobj.spell(word):
+            suggestions = hobj.suggest(word)
+            if suggestions:
+                errors.append(GrammarError(
+                    id=error_id,
+                    type="Spelling",
+                    message=f"Possible spelling mistake",
+                    original=word,
+                    suggestion=suggestions[0],
+                    context=get_sentence_context(text,word_start_pos)
+                ))
+                error_id += 1
+    
+    return errors
+
+def check_grammar_rules(text: str) -> List[GrammarError]:
+    """Check against predefined grammar rules (FIXED)"""
+    errors = []
+    error_id = 10000
+    
+    for pattern, rule in HINDI_RULES.items():
+        # Use re.finditer to catch all occurrences of the pattern
+        # re.escape is used to ensure special regex characters are treated literally
+        for match in re.finditer(re.escape(pattern), text):
+            pos = match.start()
+            errors.append(GrammarError(
+                id=error_id,
+                type=rule['type'],
+                message=rule['message'],
+                original=pattern,
+                suggestion=rule['suggestion'],
+                context=get_sentence_context_improved(text, pos) #
+            ))
+            error_id += 1
+    
+    return errors
+
+def check_repetitions(text: str) -> List[GrammarError]:
+    """Check for repeated words (FIXED)"""
+    errors = []
+    words = text.split()
+    error_id = 2000
+    
+    for i in range(len(words) - 1):
+        if words[i] == words[i + 1] and len(words[i]) > 1:
+            pattern = f"{words[i]} {words[i + 1]}" # The pattern to find
+            
+            # Use finditer to find this pattern's position iteratively
+            for match in re.finditer(re.escape(pattern), text):
+                pos = match.start()
+                errors.append(GrammarError(
+                    id=error_id,
+                    type="Repetition",
+                    message="Repeated word detected",
+                    original=pattern,
+                    suggestion=words[i],
+                    context=get_sentence_context_improved(text, pos)
+                ))
+                error_id += 1
+           
+            i += 1 
+            
+    return errors
+
+def calculate_stats(text: str, errors: List[GrammarError]) -> dict:
+    """Calculate text quality statistics"""
+    words = len(text.split())
+    
+    # Simple scoring (you can make this more sophisticated)
+    spelling_errors = len([e for e in errors if e.type == "Spelling"])
+    grammar_errors = len([e for e in errors if e.type != "Spelling"])
+    
+    grammar_score = max(0, 100 - (spelling_errors * 5) - (grammar_errors * 10))
+    fluency_score = max(0, 100 - (len(errors) * 3))
+    clarity_score = max(0, 100 - (len(errors) * 4))
+    
+    return {
+        "grammar": min(100, grammar_score),
+        "fluency": min(100, fluency_score),
+        "clarity": min(100, clarity_score),
+        "engagement": 85,  # Placeholder
+        "total_words": words,
+        "total_errors": len(errors)
+    }
+
+@app.post("/api/grammar", response_model=GrammarResponse)
+async def check_grammar(request: GrammarRequest):
+    """Main grammar checking endpoint"""
+    try:
+        text = request.message.strip()
+        if not text:
+            return GrammarResponse(errors=[], stats={
+                "grammar": 100, "fluency": 100, "clarity": 100, 
+                "engagement": 100, "total_words": 0, "total_errors": 0
+            })
+        
+        # Run all checks
+        all_errors = []
+        all_errors.extend(check_spelling(text))
+        all_errors.extend(check_grammar_rules(text))
+        all_errors.extend(check_repetitions(text))
+        
+        # Remove duplicates based on position
+        unique_errors = []
+        seen_positions = set()
+        for error in all_errors:
+            key = (error.original, error.context)
+            if key not in seen_positions:
+                unique_errors.append(error)
+                seen_positions.add(key)
+        
+        # Calculate stats
+        stats = calculate_stats(text, unique_errors)
+        
+        return GrammarResponse(errors=unique_errors, stats=stats)
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
