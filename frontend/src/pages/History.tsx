@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { 
   Menu, Sparkles, CheckCircle, Search, 
-  Trash2, Copy, Eye, Download, Filter
+  Trash2, Copy, Eye, Download, Filter, Edit
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useState, useEffect } from "react"
@@ -24,6 +24,7 @@ import { Navbar } from "@/components/ui/navbar"
 
 interface BaseActivity {
   id: string
+  activity_id: string;
   original: string
   language: string
   createdAt: string
@@ -137,6 +138,14 @@ function History() {
     setViewDialogOpen(true)
   }
 
+  const handleEdit = (item: HistoryItem) => {
+  if (item.type === 'paraphrase') {
+    navigate('/paraphrase', { state: { text: item.original, language: item.language } })
+  } else {
+    navigate('/grammar', { state: { text: item.original, language: item.language } })
+  }
+}
+
   const handleExport = () => {
     const data = filteredHistory.map(item => ({
       type: item.type,
@@ -218,7 +227,8 @@ function History() {
                     <Filter className="h-5 w-5" />
                     Filters
                   </CardTitle>
-                  <Button 
+                  <Button
+                    className="cursor-pointer" 
                     variant="outline" 
                     size="sm"
                     onClick={handleExport}
@@ -329,6 +339,9 @@ function History() {
                             <Badge variant="secondary">
                               {item.language}
                             </Badge>
+                            <Badge variant="secondary">
+                              {item.activity_id}
+                            </Badge>
                             <span className="text-xs text-muted-foreground ml-auto">
                               {item.createdAt && isValid(new Date(item.createdAt))
                                 ? formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })
@@ -355,6 +368,7 @@ function History() {
                           {/* Actions */}
                           <div className="flex items-center gap-2">
                             <Button
+                              className="cursor-pointer"
                               size="sm"
                               variant="ghost"
                               onClick={() => handleView(item)}
@@ -363,6 +377,7 @@ function History() {
                               View
                             </Button>
                             <Button
+                              className="cursor-pointer"
                               size="sm"
                               variant="ghost"
                               onClick={() => handleCopy(
@@ -373,10 +388,19 @@ function History() {
                               Copy
                             </Button>
                             <Button
+                              className="cursor-pointer"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleEdit(item)}
+                            >
+                              <Edit className="h-4 w-4 mr-1" />
+                              Edit
+                            </Button>
+                            <Button
                               size="sm"
                               variant="ghost"
                               onClick={() => handleDelete(item.id)}
-                              className="text-destructive hover:text-destructive"
+                              className="text-destructive hover:text-destructive cursor-pointer"
                             >
                               <Trash2 className="h-4 w-4 mr-1" />
                               Delete

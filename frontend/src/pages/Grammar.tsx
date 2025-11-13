@@ -6,9 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Sidebar } from "@/components/ui/sidebar"
 import { useState } from "react"
-import { Menu, Check, X, AlertCircle} from "lucide-react"
-import { Link } from "react-router-dom";
+import { Menu, Check, X, AlertCircle } from "lucide-react"
+import { Link } from "react-router-dom"
 import { Navbar } from "@/components/ui/navbar"
+import api from "@/api/axios"
+
+// मै घर जा रहा हूं और मै खाना खाऊंगा
 
 interface GrammarError {
   id: number
@@ -16,7 +19,19 @@ interface GrammarError {
   message: string
   original: string
   suggestion: string
-  context: string
+  context: string | null
+}
+
+interface GrammarResponse {
+  errors: GrammarError[]
+  stats: {
+    grammar: number
+    fluency: number
+    clarity: number
+    engagement: number
+    total_words: number
+    total_errors: number
+  }
 }
 
 function GrammarChecker() {
@@ -24,6 +39,14 @@ function GrammarChecker() {
   const [isLoading, setIsLoading] = useState(false)
   const [language, setLanguage] = useState("hindi")
   const [errors, setErrors] = useState<GrammarError[]>([])
+  const [stats, setStats] = useState({
+    grammar: 0,
+    fluency: 0,
+    clarity: 0,
+    engagement: 0,
+    total_words: 0,
+    total_errors: 0
+  })
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setTextValue(e.target.value)
@@ -32,24 +55,27 @@ function GrammarChecker() {
   const handleCheckGrammar = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch('http://localhost:8000/api/grammar', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          message: textValue,
-          language: language 
-        })
+      const response = await api.post("/grammar_check", {
+        message: textValue,
+        language: language 
       })
-      
-      const data = await response.json()
+
+      const data: GrammarResponse = response.data
       console.log('Response:', data)
-      
-      // Set errors from API response
+
       setErrors(data.errors || [])
-    } catch (error) {
+      setStats(data.stats)
+    } catch (error: any) {
       console.error('Error checking grammar:', error)
+      
+      // Handle different error types
+      if (error.response?.status === 403) {
+        alert('Monthly limit reached. Upgrade to premium for unlimited access.')
+      } else if (error.response?.status === 401) {
+        alert('Session expired. Please log in again.')
+      } else {
+        alert('Failed to check grammar. Please try again.')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -58,9 +84,22 @@ function GrammarChecker() {
   const handleAccept = (errorId: number) => {
     const error = errors.find(e => e.id === errorId)
     if (error) {
-      const newText = textValue.replace(error.original, error.suggestion)
-      setTextValue(newText)
+      // Replace only the first occurrence to avoid replacing all instances
+      const index = textValue.indexOf(error.original)
+      if (index !== -1) {
+        const newText = textValue.substring(0, index) + 
+                       error.suggestion + 
+                       textValue.substring(index + error.original.length)
+        setTextValue(newText)
+      }
       setErrors(errors.filter(e => e.id !== errorId))
+      
+      // Update stats
+      setStats(prev => ({
+        ...prev,
+        total_errors: prev.total_errors - 1,
+        grammar: Math.min(100, prev.grammar + 5)
+      }))
     }
   }
 
@@ -70,19 +109,59 @@ function GrammarChecker() {
 
   const handleAcceptAll = () => {
     let newText = textValue
-    errors.forEach(error => {
-      newText = newText.replace(error.original, error.suggestion)
+    
+    // Sort errors by position (descending) to avoid index shifts
+    const sortedErrors = [...errors].sort((a, b) => {
+      const posA = textValue.indexOf(a.original)
+      const posB = textValue.indexOf(b.original)
+      return posB - posA
     })
+    
+    sortedErrors.forEach(error => {
+      const index = newText.indexOf(error.original)
+      if (index !== -1) {
+        newText = newText.substring(0, index) + 
+                 error.suggestion + 
+                 newText.substring(index + error.original.length)
+      }
+    })
+    
     setTextValue(newText)
     setErrors([])
+    
+    // Update stats to perfect scores
+    setStats(prev => ({
+      ...prev,
+      grammar: 100,
+      fluency: 100,
+      clarity: 100,
+      total_errors: 0
+    }))
   }
 
-  // Mock stats - replace with real data from API
-  const stats = {
-    grammar: errors.length > 0 ? Math.max(50, 100 - errors.length * 10) : 100,
-    fluency: 85,
-    clarity: 78,
-    engagement: 92
+  const renderContextWithHighlight = (context: string | null, original: string, suggestion: string, isOriginal: boolean) => {
+    if (!context) {
+      return (
+        <span className={isOriginal ? "bg-red-200 dark:bg-red-900 px-1 rounded" : "bg-green-200 dark:bg-green-900 px-1 rounded font-medium"}>
+          {isOriginal ? original : suggestion}
+        </span>
+      )
+    }
+
+    const parts = context.split(original)
+    if (parts.length < 2) {
+      return context
+    }
+
+    return (
+      <>
+        {parts[0]}
+        <span className={isOriginal ? "bg-red-200 dark:bg-red-900 px-1 rounded" : "bg-green-200 dark:bg-green-900 px-1 rounded font-medium"}>
+          {isOriginal ? original : suggestion}
+        </span>
+        {parts[1]}
+      </>
+    )
   }
 
   return (
@@ -111,20 +190,6 @@ function GrammarChecker() {
 
         {/* Page Content */}
         <div className="flex-1 overflow-auto relative">
-          {/* Coming Soon Overlay */}
-          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
-            <div className="text-center max-w-md px-4">
-              <div className="text-6xl mb-6">🚧</div>
-              <h2 className="text-3xl font-bold mb-4">Coming Soon</h2>
-              <p className="text-lg text-muted-foreground mb-6">
-                Grammar Checker for Indian languages is under development. We're working hard to bring you this feature!
-              </p>
-              <Button asChild>
-                <Link to="/paraphrase">Try Paraphraser Instead</Link>
-              </Button>
-            </div>
-          </div>
-
           <div className="h-full flex flex-col lg:flex-row">
             {/* Left Side - Text Editor */}
             <div className="flex-1 flex flex-col border-r">
@@ -205,7 +270,7 @@ function GrammarChecker() {
               <div className="p-4 border-b flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">
-                    {errors.length > 0 ? `${errors.length} suggestions` : 'All'}
+                    {errors.length > 0 ? `${errors.length} suggestion${errors.length > 1 ? 's' : ''}` : 'All clear'}
                   </span>
                   {errors.length > 0 && (
                     <Badge variant="destructive">{errors.length}</Badge>
@@ -243,22 +308,14 @@ function GrammarChecker() {
                         <div className="space-y-2">
                           <div className="text-xs text-muted-foreground">Original:</div>
                           <div className="p-2 bg-red-50 dark:bg-red-950/20 rounded text-sm">
-                            {error.context.split(error.original)[0]}
-                            <span className="bg-red-200 dark:bg-red-900 px-1 rounded">
-                              {error.original}
-                            </span>
-                            {error.context.split(error.original)[1]}
+                            {renderContextWithHighlight(error.context, error.original, error.suggestion, true)}
                           </div>
                         </div>
 
                         <div className="space-y-2">
                           <div className="text-xs text-muted-foreground">Suggestion:</div>
                           <div className="p-2 bg-green-50 dark:bg-green-950/20 rounded text-sm">
-                            {error.context.split(error.original)[0]}
-                            <span className="bg-green-200 dark:bg-green-900 px-1 rounded font-medium">
-                              {error.suggestion}
-                            </span>
-                            {error.context.split(error.original)[1]}
+                            {renderContextWithHighlight(error.context, error.original, error.suggestion, false)}
                           </div>
                         </div>
 
