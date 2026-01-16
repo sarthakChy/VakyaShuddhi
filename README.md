@@ -72,11 +72,6 @@ The frontend is a modern React application.
     ```bash
     npm run dev
     ```
-
-### GPT / Model Training
-
-Check the `hin-gpt/` directory for Jupyter notebooks (`.ipynb`) related to training and fine-tuning Hindi language models.
-
 ## Features
 
 - **Grammar Checking**: backend uses `hunspell` and custom logic to verify Hindi grammar.
