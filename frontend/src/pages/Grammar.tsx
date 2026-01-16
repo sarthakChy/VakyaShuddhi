@@ -7,11 +7,9 @@ import { Badge } from "@/components/ui/badge"
 import { Sidebar } from "@/components/ui/sidebar"
 import { useState } from "react"
 import { Menu, Check, X, AlertCircle } from "lucide-react"
-import { Link } from "react-router-dom"
 import { Navbar } from "@/components/ui/navbar"
 import api from "@/api/axios"
 
-// मै घर जा रहा हूं और मै खाना खाऊंगा
 
 interface GrammarError {
   id: number
@@ -189,7 +187,7 @@ function GrammarChecker() {
         <Navbar title="Grammar Checker"/>
 
         {/* Page Content */}
-        <div className="flex-1 overflow-auto relative">
+        <div className="flex-1 overflow-hidden relative">
           <div className="h-full flex flex-col lg:flex-row">
             {/* Left Side - Text Editor */}
             <div className="flex-1 flex flex-col border-r">
@@ -241,7 +239,7 @@ function GrammarChecker() {
             </div>
 
             {/* Right Side - Suggestions Panel */}
-            <div className="w-full lg:w-96 flex flex-col bg-muted/10">
+            <div className="w-full lg:w-96 flex flex-col bg-muted/10 h-full overflow-hidden">
               {/* Stats Section */}
               <div className="border-b p-4">
                 <div className="grid grid-cols-2 gap-3">

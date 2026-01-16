@@ -10,5 +10,6 @@ hf_tokenized_dataset/
 *.onnx
 
 .env
-
+hin-gpt
 serviceAccount.json
+*.zip

@@ -1,56 +1,84 @@
 # VakyaShuddhi
 
-## Project Guide
+A comprehensive tool for Hindi sentence purification, grammar checking, and paraphrasing.
 
-### Setup:
+## Project Structure
 
-1. Create a new Python virtual environment:   
-    python3 -m venv sample_env # Creates a new venv in current local directory with chosen name: sample_env (you'll see a new dir with this name appear in root dir)
+- **frontend/**: A React + TypeScript + Vite web application.
+- **backend/**: A FastAPI backend server handling grammar checking, authentication, and paraphrasing logic.
+- **hin-gpt/**: Jupyter notebooks and resources for fine-tuning and experimenting with Hindi GPT models.
 
-2. Activate local enrionment:  
-    source sample_env/bin/activate  (for linux)
-    .\sample_env\Scripts\Activate.ps1 (for windows)
+## Getting Started
 
-3. Install all requirements:  
+### Backend Setup
+
+The backend is built with FastAPI and uses Firebase for authentication.
+
+1.  **Navigate to the backend directory:**
+    ```bash
+    cd backend
+    ```
+
+2.  **Create and activate a virtual environment:**
+    ```bash
+    python -m venv venv
+    
+    # Linux/Mac
+    source venv/bin/activate
+    
+    # Windows
+    .\venv\Scripts\Activate
+    ```
+
+3.  **Install dependencies:**
+    ```bash
     pip install -r requirements.txt
+    ```
 
-4. Run /utils/environment_check.py to ensure all libraries and packages are correctly installed and versions match
+4.  **Configuration:**
+    - Ensure `serviceAccount.json` is present in the `backend/` root for Firebase Admin SDK.
+    - Copy `.env.example` to `.env` and fill in the required values.
+      ```bash
+      cp .env.example .env
+      ```
 
-5. Run /utils/test_cuda.py to see if CUDA is available, or fall back to CPU (boo, slow)
-    if cuda not available try using pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+5.  **Run the Server:**
+    ```bash
+    python -m server.run
+    ```
+    The server typically runs on `http://localhost:8000`.
 
+### Frontend Setup
 
-## data_preprocessing.py
-Main encapsulated data-handling class managing: load, verify, shuffle, split, create, convert and save data in huggingface datasets.  
- Retrieves JSON training data input/output names and initialises class instance with correct tokenizer and pad_token/eos_token using  model_name and source_input_field / source_output_field from config.py
+The frontend is a modern React application.
 
-## prepare_data.py
-Script to prepare and save data: loads, splits, creates, validates and saves dataset into arrow format. 
+1.  **Navigate to the frontend directory:**
+    ```bash
+    cd frontend
+    ```
 
-## train.py
-Main training function.
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
 
-## /utils
-Contains various utility scripts for project pipeline: 
+3.  **Configuration:**
+    - Copy `.env.example` to `.env` and fill in your Firebase credentials.
+      ```bash
+      cp .env.example .env
+      ```
 
-- environment_check : Test environment setup and library/package version match  
-- test_cuda: Tests if CUDA is available and defaults to torch using CPU if not   
-- inspect_dataset: converts .pt tensor dataset back to tokens and text for inspection  
-- inspect_tensors: converts .pt tensor data back to preview of tensors for additional inspection  
+4.  **Run the Development Server:**
+    ```bash
+    npm run dev
+    ```
 
-## / upload
-Scripts to merge fine-tuned model with base model, test merged model, generation spiece.model files if needed, upload a merged model to huggingface and test an uploaded model.
-### merge_base_model
-Script to merge base model with your fine-tuned model configs. Adjust lines 61 + 63. 
-### test_merged_model
-To test your merged model before pushing to huggingface. Adjust name and test input as needed. Uncomment generation_configs if needed to experiment with different parameters. 
+### GPT / Model Training
 
-### upload_to_huggingface
-Update lines 63-66 of 'main' function accordginly. When running script you'll be prompted to enter a valid HF access token in CLI. 
+Check the `hin-gpt/` directory for Jupyter notebooks (`.ipynb`) related to training and fine-tuning Hindi language models.
 
+## Features
 
-
-
-
-
-export GOOGLE_APPLICATION_CREDENTIALS="/home/user/Downloads/service-account-file.json"
+- **Grammar Checking**: backend uses `hunspell` and custom logic to verify Hindi grammar.
+- **Paraphrasing**: AI-powered paraphrasing capabilities.
+- **Authentication**: Secure user authentication using Firebase.
